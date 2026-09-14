@@ -45,6 +45,9 @@ const MAX_EFFECT_MARGIN = 600;
 const pool = new BufferPool();
 /** How deep into nested compositions the renderer currently is. */
 let renderDepth = 0;
+/** Guards a time effect from re-sampling itself without end. */
+let sampleDepth = 0;
+const MAX_SAMPLE_DEPTH = 2;
 /** Deepest nesting the renderer will follow before giving up. */
 const MAX_PRECOMP_DEPTH = 8;
 
@@ -308,6 +311,7 @@ function runEffects(
   height: number,
   scale: number,
   prefix: string,
+  sampleAtTime?: (t: number) => Buffer | null,
 ): Buffer {
   const effects = activeEffects(layer);
   if (effects.length === 0) return input;
@@ -335,6 +339,7 @@ function runEffects(
       time,
       pool,
       get: paramReader(effect, time),
+      sampleAtTime,
     });
     source = dest;
   }
@@ -502,7 +507,28 @@ function renderLayerInLayerSpace(
     translation(-bounds.x, -bounds.y), width, height,
   );
 
-  const result = runEffects(layer, time, buffer, width, height, scale, prefix);
+  // Time effects re-render the layer's content at another time into the same
+  // working area, which is what lets Echo and Posterize Time exist at all.
+  const sampleAtTime = (t: number): Buffer | null => {
+    if (sampleDepth >= MAX_SAMPLE_DEPTH) return null;
+    const sample = pool.sized(`${prefix}Sample${sampleDepth}`, width, height);
+    sampleDepth += 1;
+    try {
+      sample.ctx.save();
+      sample.ctx.setTransform(scale, 0, 0, scale, -bounds.x * scale, -bounds.y * scale);
+      drawLayerContent(sample.ctx, layer, t, scale);
+      sample.ctx.restore();
+      applyMasks(
+        sample.ctx, layer, t, pool, scale,
+        translation(-bounds.x, -bounds.y), width, height,
+      );
+    } finally {
+      sampleDepth -= 1;
+    }
+    return sample;
+  };
+
+  const result = runEffects(layer, time, buffer, width, height, scale, prefix, sampleAtTime);
   return { buffer: result, bounds };
 }
 

@@ -41,6 +41,12 @@ export interface EffectContext {
   pool: BufferPool;
   /** Parameter value at the current time. */
   get: <T extends PropertyValue>(key: string) => T;
+  /**
+   * The layer's own pixels at another time, in this same working area, or
+   * null when that is not available — an adjustment layer has no source of
+   * its own to re-render. Time effects such as Echo are built on this.
+   */
+  sampleAtTime?: (time: number) => Buffer | null;
 }
 
 export interface EffectDefinition {

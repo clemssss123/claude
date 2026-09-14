@@ -170,6 +170,67 @@ export function rgbaTo255(color: RGBA): [number, number, number, number] {
   return [color[0] * 255, color[1] * 255, color[2] * 255, color[3] * 255];
 }
 
+// -- noise -----------------------------------------------------------------
+
+/** Deterministic hash in 0..1, the basis of the value noise below. */
+export function hashNoise(x: number, y: number, z: number): number {
+  const n = Math.sin(x * 127.1 + y * 311.7 + z * 74.7) * 43758.5453;
+  return n - Math.floor(n);
+}
+
+function smoothStep(t: number): number {
+  return t * t * (3 - 2 * t);
+}
+
+export function valueNoise(x: number, y: number, z = 0): number {
+  const xi = Math.floor(x);
+  const yi = Math.floor(y);
+  const xf = smoothStep(x - xi);
+  const yf = smoothStep(y - yi);
+
+  const a = hashNoise(xi, yi, z);
+  const b = hashNoise(xi + 1, yi, z);
+  const c = hashNoise(xi, yi + 1, z);
+  const d = hashNoise(xi + 1, yi + 1, z);
+  const top = a + (b - a) * xf;
+  const bottom = c + (d - c) * xf;
+  return top + (bottom - top) * yf;
+}
+
+/** Summed octaves of value noise, each finer and quieter than the last. */
+export function fractalNoise(x: number, y: number, z: number, octaves: number): number {
+  let value = 0;
+  let amplitude = 0.5;
+  let frequency = 1;
+  let total = 0;
+  for (let i = 0; i < octaves; i += 1) {
+    value += valueNoise(x * frequency, y * frequency, z + i * 7.31) * amplitude;
+    total += amplitude;
+    amplitude *= 0.5;
+    frequency *= 2;
+  }
+  return value / total;
+}
+
+/** Monotone-ish Catmull-Rom through evenly spaced control points. */
+export function splineAt(points: number[], t: number): number {
+  const clamped = Math.min(1, Math.max(0, t));
+  const last = points.length - 1;
+  const scaled = clamped * last;
+  const i = Math.min(last - 1, Math.floor(scaled));
+  const f = scaled - i;
+  const p0 = points[Math.max(0, i - 1)];
+  const p1 = points[i];
+  const p2 = points[i + 1];
+  const p3 = points[Math.min(last, i + 2)];
+  return 0.5 * (
+    2 * p1
+    + (p2 - p0) * f
+    + (2 * p0 - 5 * p1 + 4 * p2 - p3) * f * f
+    + (3 * p1 - 3 * p2 + p3 - p0) * f * f * f
+  );
+}
+
 export function rgbToHsl(r: number, g: number, b: number): [number, number, number] {
   const rn = r / 255;
   const gn = g / 255;

@@ -1,12 +1,12 @@
 # Keyframe Studio
 
 A browser-based 2D motion graphics compositor modeled on Adobe After Effects.
-TypeScript + React, no 3D. Built in phases; this repository is at **phase 5**.
+TypeScript + React, no 3D. Built in phases; this repository is at **phase 6**.
 
 ```bash
 npm install
 npm run dev        # http://localhost:5173
-npm test           # core maths unit tests
+npm test           # core unit tests
 npm run typecheck
 npm run build
 ```
@@ -17,46 +17,159 @@ npm run build
 plain serializable data with no framework types in it (`src/core/`). Time is in
 seconds throughout; frames exist only at the UI boundary.
 
-**Keyframes and interpolation** — linear, bezier and hold, with After Effects'
-influence/speed handle model. Easy Ease (F9) produces the exact
-`(0.333, 0) / (0.667, 1)` curve AE does. Multi-dimensional properties share one
-normalized speed curve, as AE does before dimensions are separated.
+**Keyframes and interpolation** — linear, bezier and hold using After Effects'
+influence/speed handle model, plus Auto Bezier and Continuous Bezier tangent
+linking and roving keyframes that redistribute their own time for constant
+speed. Easy Ease (F9) produces AE's exact `(0.333, 0) / (0.667, 1)` curve.
+Vectors share one normalized speed curve until you **separate dimensions**,
+which splits Position into X and Y losslessly and merges back. Keyframes copy
+and paste across properties and layers, shape-checked.
 
-**Transforms** — anchor point, position, scale, rotation, opacity; parenting
-composes transforms up the chain (opacity and blend modes deliberately do not
-inherit) with cycle detection.
+**Graph editor** (Shift+F3) — value and speed graphs with per-property
+normalization so mixed units share one view, auto-zoom, fit, frame snapping,
+box select, and draggable keyframes and bezier handles with a live
+influence/speed readout. A vector's value graph is a dashed reference graph,
+because its dimensions share one easing curve; its handles live on the speed
+graph until the dimensions are separated — the same division AE makes.
 
-**Composition viewer** — Canvas2D render of solids, text and shape layers with
-per-layer blend modes, masks and track mattes, resolution (full/half/quarter),
-transparency grid, selection box with scale handles, anchor-point marker,
-motion path for animated position, and direct manipulation: move, scale from
-handles, rotate (W), pan-behind (Y), hand (H), zoom (Z), pen (G), rectangle and
-ellipse (Q). Shift constrains.
+**Easing library** — a Flow-style preset strip: 34 curves as clickable
+thumbnails (Linear, the three Easy Eases, and In/Out/InOut for Sine, Quad,
+Cubic, Quart, Quint, Expo, Circ and Back), plus a live cubic-bezier editor with
+two draggable control points and numeric `x1,y1,x2,y2` fields. Applying a
+preset solves for the influence/speed handles that reproduce that exact curve
+on the selected segment. Elastic and Bounce cannot be one cubic bezier, so they
+are marked *baked* and applied by sampling real keyframes across the segment
+rather than faking it. Your own curves save to a named, reorderable preset
+library kept in local storage.
 
-Layers that need no masking or matting composite straight onto the frame;
-anything else goes through a scratch buffer first, because a mask or a matte
-has to change the layer's alpha before it meets the frame.
+**Transforms and motion paths** — anchor point, position, scale, rotation,
+opacity; parenting composes transforms up the chain (opacity and blend modes
+deliberately do not inherit) with cycle detection. Positional keyframes carry
+spatial interpolation independently of their timing: auto-bezier tangents by
+default, with handles you can drag on the path in the viewer. Progress along a
+curved path is reparameterized by arc length, so an eased path still moves at
+the speed the speed graph says it does.
+
+**Masks** — bezier mask paths with all seven modes (none, add, subtract,
+intersect, lighten, darken, difference), per-mask inversion, opacity, expansion
+and separate horizontal/vertical feather. Draw one by dragging the rectangle or
+ellipse tool over a selected layer, or click a path out with the pen (G);
+vertices and their tangent handles are editable directly on the outline in the
+viewer, and the path keyframes like any other property.
+
+**Shape layers** — rectangle, ellipse, star and polygon paths plus free pen
+paths, with fills, strokes (width, caps, joins, dashes) and the modifiers that
+make shape layers worth having: Trim Paths, Repeater and Offset Paths, each
+animatable. Groups nest and carry their own transform, including skew.
+
+**Text** — real glyph measurement, and per-character animators with range
+selectors: start/end/offset in percent or character index, six falloff shapes,
+ease high/low, add and subtract modes, driving position, scale, rotation,
+opacity, tracking and fill colour.
+
+**Track mattes** — alpha, alpha inverted, luma and luma inverted, taking the
+layer directly above as the matte and hiding it from the frame, as in AE.
+
+**Motion blur** — per-layer and per-composition switches, shutter angle and
+phase, samples per frame and an adaptive limit. Sub-frame samples across the
+open shutter are accumulated and averaged, so a fast layer smears rather than
+stepping. Content that cannot change within a frame is rendered once and only
+its transform re-sampled, which keeps the common case affordable.
+
+**Expressions** — JavaScript on any property, with After Effects' scope: bare
+`time`, `value`, `index`, `thisComp`, `thisLayer`, `effect("…")("…")`,
+`linear`/`ease`/`easeIn`/`easeOut`, `clamp`, `length`, `random`, `seedRandom`,
+`noise`, `wiggle`, `loopIn`/`loopOut` (cycle, pingpong, offset, continue),
+`valueAtTime`, `velocityAtTime`, and `toComp`/`fromComp`. Alt-click a stopwatch
+to add one; it gets its own editable row in the timeline, and **EE** reveals
+every expression on a layer.
+
+Three guarantees hold: a property that refers to itself is caught rather than
+hanging, the same property at the same time is evaluated once per frame, and a
+broken expression reports its error in place and falls back to the keyframed
+value — one bad line never blanks the composition.
+
+**Pre-compositions** — nest a composition as a layer. **Ctrl+Shift+C**
+pre-composes the selected layers into a new composition and leaves a pre-comp
+layer in their place, pixel for pixel; double-click the layer to open its
+source. Nesting is depth-guarded, and each nesting level gets its own render
+buffers so an inner composition cannot disturb its parent.
+
+**Time remapping** — **Ctrl+Alt+T** on a pre-comp layer creates a Time Remap
+property mapping composition time to source time: keyframe it to hold, reverse
+or re-time the nested composition.
+
+**Adjustment layers** apply their effects to everything drawn beneath them,
+confined by their own masks and composited at their own opacity and blend mode.
+**Null objects** are invisible parenting controls that draw their own outline
+and centre cross in the viewer and hit-test against their real box.
+
+### Effects
+
+An engine plus **80 effects** across twelve categories. An effect is a
+definition — a name, a parameter schema and a render function — so adding one
+means adding a file, not touching the engine (`src/render/effects/`).
+Parameters become ordinary animatable properties, so every effect keyframes,
+graphs, undoes and saves like anything else.
+
+Effects run in the layer's own space, before the transform, exactly as in After
+Effects: a blur is a blur of the source, not of the scaled result, and Motion
+Tile tiles the layer rather than the frame. Effects that paint outside the
+layer — blurs, glows, drop shadows — declare how much headroom they need and
+the pipeline gives them a larger working buffer. Time effects re-render the
+layer at other times through that same pipeline.
+
+| Category | Effects |
+| --- | --- |
+| Blur & Sharpen (9) | Gaussian Blur, Fast Box Blur, Directional Blur, Radial Blur, Channel Blur, Camera Lens Blur, Bilateral Blur, Sharpen, Unsharp Mask |
+| Color Correction (14) | Curves, Levels, Brightness & Contrast, Hue/Saturation, Exposure, Vibrance, Color Balance (HLS), Tint, Tritone, Photo Filter, Change to Color, Black & White, Colorama, Auto Contrast |
+| Stylize (12) | Deep Glow, Glow, Motion Tile, Mosaic, Find Edges, Vignette, Posterize, Threshold, Roughen Edges, Scatter, Cartoon, CC Kaleida |
+| Distort (11) | Transform, Offset, Polar Coordinates, Wave Warp, Bulge, Twirl, Turbulent Displace, Displacement Map, Ripple, Corner Pin, Optics Compensation |
+| Generate (9) | Fill, Gradient Ramp, 4-Color Gradient, Checkerboard, Grid, Cell Pattern, Lens Flare, Beam, Circle |
+| Noise & Grain (6) | Fractal Noise, Noise, Noise HLS, Add Grain, Median, Dust & Scratches |
+| Transition (5) | Linear Wipe, Radial Wipe, Venetian Blinds, Block Dissolve, Gradient Wipe |
+| Keying (4) | Chroma Key (with spill suppression), Color Key, Luma Key, Extract |
+| Channel (4) | Invert, Channel Mixer, Shift Channels, Minimax |
+| Matte (2) | Simple Choker, Matte Choker |
+| Perspective (2) | Drop Shadow, Bevel Alpha |
+| Time (2) | Echo, Posterize Time |
+
+Effect Controls lists them with their parameters, enable, reorder and delete;
+**Ctrl+5** opens a searchable Effects & Presets browser. Curves gets an
+interactive control: drag its five points and the plotted spline is the same
+one the pixels are sampled through.
+
+### Editor
+
+**Composition viewer** — Canvas2D render with per-layer blend modes, masks,
+effects and track mattes, resolution (full/half/quarter), transparency grid,
+selection box with scale handles, anchor-point marker, motion path, and direct
+manipulation: move, scale from handles, rotate (W), pan-behind (Y), hand (H),
+zoom (Z), pen (G), rectangle and ellipse (Q). Shift constrains.
+
+Layers that need no masking, effects or matting composite straight onto the
+frame; anything else is built in a scratch buffer first, because a mask, an
+effect or a matte has to change the layer's pixels before they meet the frame.
 
 **Timeline** — layer stack with label colours, eye/solo/lock/shy/motion-blur
-switches, blend mode and parent pickers, twirl-down property rows with
-scrubbable values, stopwatches, keyframe navigators, a track-matte column, and
-a separate-dimensions toggle on Position. The property tree nests properly:
-Text animators, shape Contents, Masks and Transform, each with the controls
-that belong to it — mask mode and inversion, animator property and selector
-menus, shape item add and delete. The track area is
-canvas-drawn: ruler with timecode, work area bar with draggable ends, layer
-bars you can slide and trim from either edge, keyframes you can click,
-shift-click, marquee-select, drag (frame-snapped) and right-click for
-interpolation. Keyframe glyphs differ by interpolation type, as in AE.
+switches, blend mode, track matte and parent pickers, twirl-down property rows
+with scrubbable values, stopwatches, keyframe navigators and a
+separate-dimensions toggle on Position. The property tree nests properly: Text
+animators, shape Contents, Masks, Effects, Time Remap and Transform, each with
+the controls that belong to it. The track area is canvas-drawn: ruler with
+timecode, work area bar with draggable ends, layer bars you can slide and trim
+from either edge, keyframes you can click, shift-click, marquee-select, drag
+(frame-snapped) and right-click for interpolation. Keyframe glyphs differ by
+interpolation type, as in AE.
 
 **Transport** — real-time playback looping the work area, frame stepping,
 keyframe navigation (J/K).
 
-**Undo/redo** — every document edit is named and undoable; drags collapse into a
-single history step.
+**Undo/redo** — every document edit is named and undoable; drags collapse into
+a single history step.
 
-Keyframe Velocity (Ctrl+Shift+K) and Keyframe Interpolation (Ctrl+Alt+K)
-dialogs edit the same handles numerically.
+**Dialogs** — Composition Settings, Keyframe Velocity (Ctrl+Shift+K), Keyframe
+Interpolation (Ctrl+Alt+K), Effects & Presets (Ctrl+5) and the keymap (F1).
 
 **Keyboard** — the After Effects keymap lives in one table
 (`src/input/shortcuts.ts`). 96 of 98 bindings are live; the rest are registered
@@ -65,34 +178,43 @@ them. Press **F1** for the list. Double-tap chords (UU/MM/EE) are handled.
 
 ## What is not built yet
 
-Phases 6–7 from the plan: the remaining effects on the way to 50–100, and
-WebCodecs export.
+Phase 7 from the plan: WebCodecs export.
+
+Effects that read a *second layer* in After Effects — Displacement Map,
+Gradient Wipe, Set Matte, Compound Blur — read the layer's own channels here
+instead, which is how they are most often used; the layer picker they would
+need is not built.
 
 Collapse Transformations is stored on pre-comp layers so projects round-trip,
 but the renderer still composites a nested composition as its own frame rather
 than passing the inner layers through. Time remapping applies to pre-comps,
 which are the only layers here with a source to remap.
 
-Within phase 3's areas, three things are deliberately not built: variable-width
-mask feather (per-point feather geometry), Merge Paths on shape layers, and
-keyframing of a text layer's source string. Offset Paths uses a flattened
-polyline offset rather than a true Minkowski offset, which is accurate for the
-gentle offsets shape layers usually want but does not remove
-self-intersections. Anything in the UI that is not yet real says so rather than
-pretending.
+Also unbuilt: variable-width mask feather (per-point feather geometry), Merge
+Paths on shape layers, and keyframing of a text layer's source string. Offset
+Paths uses a flattened-polyline offset rather than a true Minkowski offset,
+which is accurate for the gentle offsets shape layers usually want but does not
+remove self-intersections.
+
+In expressions, a property reference evaluates to its value: vectors carry
+`valueAtTime`, `velocityAtTime` and `numKeys`, but scalars come back as plain
+numbers, so for those use the bare `valueAtTime(t)` of the property the
+expression is on.
+
+Anything in the UI that is not yet real says so rather than pretending.
 
 ## Layout
 
 ```
-src/core/     document model, paths, shapes, text, interpolation, easings,
-              motion paths, expressions — no React, no DOM
-src/render/   Canvas2D compositor: buffers, masks, mattes, hit testing
+src/core/            document model, paths, shapes, text, interpolation,
+                     easings, motion paths, expressions — no React, no DOM
+src/render/          Canvas2D compositor: buffers, masks, mattes, hit testing
 src/render/effects/  the effect registry and every built-in effect
-src/state/    zustand store, undo history, playback transport
-src/input/    After Effects keymap and the global key handler
-src/ui/       panels, dialogs and shared controls
+src/state/           zustand store, undo history, playback transport
+src/input/           After Effects keymap and the global key handler
+src/ui/              panels, dialogs and shared controls
 ```
 
-The renderer is deliberately behind a small surface (`renderComposition`) so
-phase 4 can swap in the WebGL2 pass pipeline that effects and motion blur need
-without the document model or UI changing.
+The renderer sits behind one surface (`renderComposition`), so a WebGL2 pass
+pipeline could replace the Canvas2D one without the document model or the UI
+changing.

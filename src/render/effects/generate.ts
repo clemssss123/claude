@@ -1,4 +1,4 @@
-import { clamp01, mapPixels, rgbaTo255 } from './pixels';
+import { clamp01, fractalNoise, hashNoise, mapPixels, rgbaTo255 } from './pixels';
 import { registerEffect } from './registry';
 import type { RGBA, Vec2 } from '@/core/types';
 
@@ -161,40 +161,240 @@ function mod(value: number, m: number): number {
   return ((value % m) + m) % m;
 }
 
-/** Deterministic hash in 0..1 — the basis of the value noise below. */
-function hash(x: number, y: number, z: number): number {
-  const n = Math.sin(x * 127.1 + y * 311.7 + z * 74.7) * 43758.5453;
-  return n - Math.floor(n);
+registerEffect({
+  matchName: 'ADBE Cell Pattern',
+  name: 'Cell Pattern',
+  category: 'Generate',
+  params: [
+    {
+      key: 'pattern', name: 'Cell Pattern', kind: 'select', default: 0,
+      options: ['Bubbles', 'Crystals', 'Plates', 'Static Plates', 'Tubular'],
+    },
+    { key: 'invert', name: 'Invert', kind: 'checkbox', default: 0 },
+    { key: 'contrast', name: 'Contrast', kind: 'percent', default: 100, min: 1, max: 400, unit: '%' },
+    { key: 'disperse', name: 'Disperse', kind: 'percent', default: 100, min: 0, max: 100, unit: '%' },
+    { key: 'sizeAmount', name: 'Size', kind: 'number', default: 60, min: 2 },
+    { key: 'offset', name: 'Offset', kind: 'vec2', default: [0, 0], dimensionNames: ['X', 'Y'] },
+    { key: 'evolution', name: 'Evolution', kind: 'angle', default: 0, unit: '°' },
+    { key: 'opacity', name: 'Opacity', kind: 'percent', default: 100, min: 0, max: 100, unit: '%' },
+  ],
+  apply: ({ source, dest, width, height, scale, get }) => {
+    const pattern = Math.round(get<number>('pattern'));
+    const invert = get<number>('invert') >= 0.5;
+    const contrast = get<number>('contrast') / 100;
+    const disperse = get<number>('disperse') / 100;
+    const cell = Math.max(2, get<number>('sizeAmount') * scale);
+    const offset = get<Vec2>('offset');
+    const evolution = get<number>('evolution') / 360;
+    const opacity = get<number>('opacity') / 100;
+
+    mapPixels(source, dest, width, height, (r, g, b, a, x, y, out) => {
+      const px = (x + offset[0] * scale) / cell;
+      const py = (y + offset[1] * scale) / cell;
+      const cx = Math.floor(px);
+      const cy = Math.floor(py);
+
+      // Worley noise: distance to the nearest scattered feature point, and to
+      // the second nearest, which is what separates bubbles from crystals.
+      let nearest = Infinity;
+      let second = Infinity;
+      for (let dy = -1; dy <= 1; dy += 1) {
+        for (let dx = -1; dx <= 1; dx += 1) {
+          const gx = cx + dx;
+          const gy = cy + dy;
+          const jitterX = hashNoise(gx, gy, evolution) * disperse;
+          const jitterY = hashNoise(gx + 41.3, gy + 7.7, evolution) * disperse;
+          const distance = Math.hypot(px - (gx + jitterX), py - (gy + jitterY));
+          if (distance < nearest) {
+            second = nearest;
+            nearest = distance;
+          } else if (distance < second) {
+            second = distance;
+          }
+        }
+      }
+
+      let value: number;
+      if (pattern === 1 || pattern === 2) value = clamp01((second - nearest) * contrast);
+      else if (pattern === 4) value = clamp01(Math.abs(Math.sin(nearest * Math.PI * 2)) * contrast);
+      else value = clamp01((1 - nearest) * contrast);
+      if (invert) value = 1 - value;
+
+      const level = value * 255;
+      out[0] = r + (level - r) * opacity;
+      out[1] = g + (level - g) * opacity;
+      out[2] = b + (level - b) * opacity;
+      out[3] = a + (255 - a) * opacity;
+    });
+  },
+});
+
+registerEffect({
+  matchName: 'ADBE Lens Flare',
+  name: 'Lens Flare',
+  category: 'Generate',
+  params: [
+    { key: 'centre', name: 'Flare Center', kind: 'vec2', default: [0, 0], dimensionNames: ['X', 'Y'] },
+    { key: 'brightness', name: 'Flare Brightness', kind: 'percent', default: 100, min: 0, max: 400, unit: '%' },
+    { key: 'colour', name: 'Flare Color', kind: 'color', default: [1, 0.95, 0.85, 1] },
+    { key: 'blend', name: 'Blend With Original', kind: 'percent', default: 0, min: 0, max: 100, unit: '%' },
+  ],
+  apply: ({ source, dest, width, height, scale, get }) => {
+    const centre = get<Vec2>('centre');
+    const cx = width / 2 + centre[0] * scale;
+    const cy = height / 2 + centre[1] * scale;
+    const brightness = get<number>('brightness') / 100;
+    const colour = get<RGBA>('colour');
+    const blend = 1 - get<number>('blend') / 100;
+
+    dest.ctx.setTransform(1, 0, 0, 1, 0, 0);
+    dest.ctx.globalCompositeOperation = 'copy';
+    dest.ctx.globalAlpha = 1;
+    dest.ctx.drawImage(source.canvas as CanvasImageSource, 0, 0);
+    dest.ctx.globalCompositeOperation = 'lighter';
+    dest.ctx.globalAlpha = blend;
+
+    const to255 = (v: number) => Math.round(clamp01(v) * 255);
+    const rgb = `${to255(colour[0])}, ${to255(colour[1])}, ${to255(colour[2])}`;
+
+    // The core, then a wider halo, then ghosts marching back through the
+    // centre — the arrangement that reads as a lens flare.
+    const core = Math.min(width, height) * 0.08 * brightness;
+    drawGlowDisc(dest.ctx, cx, cy, core, rgb, 1);
+    drawGlowDisc(dest.ctx, cx, cy, core * 6, rgb, 0.25 * brightness);
+
+    const dx = width / 2 - cx;
+    const dy = height / 2 - cy;
+    for (let i = 1; i <= 5; i += 1) {
+      const t = i / 3;
+      drawGlowDisc(
+        dest.ctx, cx + dx * t * 2, cy + dy * t * 2,
+        core * (0.3 + (i % 3) * 0.25), rgb, 0.12 * brightness,
+      );
+    }
+
+    dest.ctx.globalCompositeOperation = 'source-over';
+    dest.ctx.globalAlpha = 1;
+  },
+});
+
+function drawGlowDisc(
+  ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+  x: number, y: number, radius: number, rgb: string, alpha: number,
+): void {
+  if (radius <= 0 || alpha <= 0) return;
+  const gradient = ctx.createRadialGradient(x, y, 0, x, y, radius);
+  gradient.addColorStop(0, `rgba(${rgb}, ${Math.min(1, alpha)})`);
+  gradient.addColorStop(0.4, `rgba(${rgb}, ${Math.min(1, alpha) * 0.35})`);
+  gradient.addColorStop(1, `rgba(${rgb}, 0)`);
+  ctx.fillStyle = gradient;
+  ctx.beginPath();
+  ctx.arc(x, y, radius, 0, Math.PI * 2);
+  ctx.fill();
 }
 
-function smooth(t: number): number {
-  return t * t * (3 - 2 * t);
-}
+registerEffect({
+  matchName: 'ADBE Beam',
+  name: 'Beam',
+  category: 'Generate',
+  params: [
+    { key: 'start', name: 'Starting Point', kind: 'vec2', default: [-300, 0], dimensionNames: ['X', 'Y'] },
+    { key: 'end', name: 'Ending Point', kind: 'vec2', default: [300, 0], dimensionNames: ['X', 'Y'] },
+    { key: 'length', name: 'Length', kind: 'percent', default: 100, min: 0, max: 100, unit: '%' },
+    { key: 'time', name: 'Time', kind: 'percent', default: 100, min: 0, max: 100, unit: '%' },
+    { key: 'startThickness', name: 'Starting Thickness', kind: 'number', default: 12, min: 0 },
+    { key: 'endThickness', name: 'Ending Thickness', kind: 'number', default: 12, min: 0 },
+    { key: 'softness', name: 'Softness', kind: 'percent', default: 40, min: 0, max: 100, unit: '%' },
+    { key: 'colour', name: 'Inside Color', kind: 'color', default: [0.6, 0.85, 1, 1] },
+    { key: 'composite', name: 'Composite on Original', kind: 'checkbox', default: 1 },
+  ],
+  apply: ({ source, dest, width, height, scale, get }) => {
+    const start = get<Vec2>('start');
+    const end = get<Vec2>('end');
+    const lengthFraction = get<number>('length') / 100;
+    const progress = get<number>('time') / 100;
+    const startThickness = get<number>('startThickness') * scale;
+    const endThickness = get<number>('endThickness') * scale;
+    const softness = get<number>('softness') / 100;
+    const colour = get<RGBA>('colour');
 
-function valueNoise(x: number, y: number, z: number): number {
-  const xi = Math.floor(x);
-  const yi = Math.floor(y);
-  const xf = smooth(x - xi);
-  const yf = smooth(y - yi);
+    const sx = width / 2 + start[0] * scale;
+    const sy = height / 2 + start[1] * scale;
+    const ex = width / 2 + end[0] * scale;
+    const ey = height / 2 + end[1] * scale;
 
-  const a = hash(xi, yi, z);
-  const b = hash(xi + 1, yi, z);
-  const c = hash(xi, yi + 1, z);
-  const d = hash(xi + 1, yi + 1, z);
-  return (a + (b - a) * xf) + ((c + (d - c) * xf) - (a + (b - a) * xf)) * yf;
-}
+    // The beam's head travels the path; its tail follows a length behind.
+    const head = progress;
+    const tail = Math.max(0, progress - lengthFraction);
+    const p0x = sx + (ex - sx) * tail;
+    const p0y = sy + (ey - sy) * tail;
+    const p1x = sx + (ex - sx) * head;
+    const p1y = sy + (ey - sy) * head;
 
-/** Summed octaves of value noise, each finer and quieter than the last. */
-function fractalNoise(x: number, y: number, z: number, octaves: number): number {
-  let value = 0;
-  let amplitude = 0.5;
-  let frequency = 1;
-  let total = 0;
-  for (let i = 0; i < octaves; i += 1) {
-    value += valueNoise(x * frequency, y * frequency, z + i * 7.31) * amplitude;
-    total += amplitude;
-    amplitude *= 0.5;
-    frequency *= 2;
-  }
-  return value / total;
-}
+    dest.ctx.setTransform(1, 0, 0, 1, 0, 0);
+    dest.ctx.globalCompositeOperation = 'copy';
+    dest.ctx.globalAlpha = 1;
+    if (get<number>('composite') >= 0.5) {
+      dest.ctx.drawImage(source.canvas as CanvasImageSource, 0, 0);
+    } else {
+      dest.ctx.clearRect(0, 0, width, height);
+    }
+    dest.ctx.globalCompositeOperation = 'lighter';
+
+    const to255 = (v: number) => Math.round(clamp01(v) * 255);
+    const rgb = `${to255(colour[0])}, ${to255(colour[1])}, ${to255(colour[2])}`;
+    const thickness = Math.max(startThickness, endThickness);
+    const passes = softness > 0 ? 4 : 1;
+    for (let i = 0; i < passes; i += 1) {
+      const spread = 1 + (i / passes) * softness * 6;
+      dest.ctx.strokeStyle = `rgba(${rgb}, ${0.9 / passes})`;
+      dest.ctx.lineWidth = Math.max(0.5, thickness * spread);
+      dest.ctx.lineCap = 'round';
+      dest.ctx.beginPath();
+      dest.ctx.moveTo(p0x, p0y);
+      dest.ctx.lineTo(p1x, p1y);
+      dest.ctx.stroke();
+    }
+
+    dest.ctx.globalCompositeOperation = 'source-over';
+    dest.ctx.globalAlpha = 1;
+  },
+});
+
+registerEffect({
+  matchName: 'ADBE Circle',
+  name: 'Circle',
+  category: 'Generate',
+  params: [
+    { key: 'centre', name: 'Center', kind: 'vec2', default: [0, 0], dimensionNames: ['X', 'Y'] },
+    { key: 'radius', name: 'Radius', kind: 'number', default: 200, min: 0 },
+    { key: 'edgeRadius', name: 'Edge Radius', kind: 'number', default: 0, min: 0 },
+    { key: 'feather', name: 'Feather', kind: 'number', default: 0, min: 0 },
+    { key: 'colour', name: 'Color', kind: 'color', default: [1, 1, 1, 1] },
+    { key: 'opacity', name: 'Opacity', kind: 'percent', default: 100, min: 0, max: 100, unit: '%' },
+    { key: 'invert', name: 'Invert Circle', kind: 'checkbox', default: 0 },
+  ],
+  apply: ({ source, dest, width, height, scale, get }) => {
+    const centre = get<Vec2>('centre');
+    const cx = width / 2 + centre[0] * scale;
+    const cy = height / 2 + centre[1] * scale;
+    const radius = get<number>('radius') * scale;
+    const edge = get<number>('edgeRadius') * scale;
+    const feather = Math.max(0.001, get<number>('feather') * scale);
+    const [cr, cg, cb] = rgbaTo255(get<RGBA>('colour'));
+    const opacity = get<number>('opacity') / 100;
+    const invert = get<number>('invert') >= 0.5;
+
+    mapPixels(source, dest, width, height, (r, g, b, a, x, y, out) => {
+      const distance = Math.hypot(x - cx, y - cy);
+      // A non-zero edge radius turns the disc into a ring.
+      let inside = clamp01((radius - distance) / feather);
+      if (edge > 0) inside *= clamp01((distance - (radius - edge)) / feather);
+      const amount = (invert ? 1 - inside : inside) * opacity;
+      out[0] = r + (cr - r) * amount;
+      out[1] = g + (cg - g) * amount;
+      out[2] = b + (cb - b) * amount;
+      out[3] = a + (255 - a) * amount;
+    });
+  },
+});

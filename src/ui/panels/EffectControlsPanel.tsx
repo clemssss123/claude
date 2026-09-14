@@ -6,6 +6,7 @@ import { rgbToHex, hexToRgba, valueAtTime } from '@/core/property';
 import { allEffectDefinitions, getEffectDefinition } from '@/render/effects';
 import type { EffectParamDef } from '@/render/effects';
 import { useEditor } from '@/state/store';
+import { CurveControl } from '@/ui/components/CurveControl';
 import { ScrubbableNumber } from '@/ui/components/ScrubbableNumber';
 import type { AnyProperty, EffectInstance, Id, RGBA } from '@/core/types';
 
@@ -144,6 +145,24 @@ function EffectBlock({ layerId, effect, index, time, isLast }: {
           ✕
         </button>
       </div>
+      {definition?.matchName === 'ADBE CurvesCustom' && (
+        <div className="curve-control-row">
+          <CurveControl
+            points={CURVE_KEYS.map(
+              (key) => valueAtTime(effect.params[key], time) as number,
+            )}
+            onChange={(points, phase) => {
+              const store = useEditor.getState();
+              CURVE_KEYS.forEach((key, i) => {
+                store.setPropertyValue(
+                  layerId, `effects.${index}.params.${key}`, points[i] as never,
+                  phase === 'drag' ? `fx:${layerId}:curves` : undefined,
+                );
+              });
+            }}
+          />
+        </div>
+      )}
       {definition?.params.map((param) => (
         <ParamRow
           key={param.key}
@@ -157,6 +176,8 @@ function EffectBlock({ layerId, effect, index, time, isLast }: {
     </div>
   );
 }
+
+const CURVE_KEYS = ['black', 'shadows', 'midtones', 'highlights', 'white'];
 
 function ParamRow({ layerId, path, property, time, param }: {
   layerId: Id; path: string; property: AnyProperty | undefined; time: number;

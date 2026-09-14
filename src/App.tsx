@@ -100,7 +100,7 @@ export function App() {
       <div className="status-bar">
         <span>{status ?? 'Ready'}</span>
         <span style={{ flex: 1 }} />
-        <span>Phase 5 — motion blur, expressions, precomps, time remapping</span>
+        <span>Phase 6 — 80 effects across twelve categories</span>
       </div>
 
       {dialog === 'compSettings' && <CompSettingsDialog onClose={() => store.openDialog(null)} />}

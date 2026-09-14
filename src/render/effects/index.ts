@@ -9,5 +9,8 @@ import './stylize';
 import './distort';
 import './generate';
 import './keying';
+import './noise';
+import './transition';
+import './time';
 
 export * from './registry';

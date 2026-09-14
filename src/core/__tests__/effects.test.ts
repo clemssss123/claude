@@ -138,3 +138,69 @@ describe('effects on layers', () => {
     expect(a.id).not.toBe(b.id);
   });
 });
+
+describe('the full effect library', () => {
+  it('covers the categories the plan called for', () => {
+    const categories = new Set(allEffectDefinitions().map((d) => d.category));
+    for (const category of [
+      'Blur & Sharpen', 'Color Correction', 'Stylize', 'Distort', 'Generate',
+      'Keying', 'Matte', 'Channel', 'Noise & Grain', 'Transition', 'Time',
+      'Perspective',
+    ]) {
+      expect(categories.has(category)).toBe(true);
+    }
+  });
+
+  it('reaches the 50-100 effect target', () => {
+    const count = allEffectDefinitions().length;
+    expect(count).toBeGreaterThanOrEqual(50);
+    expect(count).toBeLessThanOrEqual(100);
+  });
+
+  it('ships the effects named in the brief', () => {
+    const names = new Set(allEffectDefinitions().map((d) => d.name));
+    for (const name of [
+      'Motion Tile', 'Deep Glow', 'Gaussian Blur', 'Curves', 'Levels',
+      'Turbulent Displace', 'Fractal Noise', 'Echo', 'Linear Wipe', 'Drop Shadow',
+      'Polar Coordinates', 'Corner Pin', 'Lens Flare', 'Cell Pattern', 'Median',
+    ]) {
+      expect(names.has(name)).toBe(true);
+    }
+  });
+
+  it('gives every parameter a distinct key within its effect', () => {
+    for (const definition of allEffectDefinitions()) {
+      const keys = definition.params.map((p) => p.key);
+      expect(new Set(keys).size).toBe(keys.length);
+    }
+  });
+
+  it('keeps every default inside its own declared range', () => {
+    for (const definition of allEffectDefinitions()) {
+      for (const param of definition.params) {
+        if (typeof param.default !== 'number') continue;
+        if (param.min !== undefined) expect(param.default).toBeGreaterThanOrEqual(param.min);
+        if (param.max !== undefined) expect(param.default).toBeLessThanOrEqual(param.max);
+      }
+    }
+  });
+
+  it('points every select default at a real option', () => {
+    for (const definition of allEffectDefinitions()) {
+      for (const param of definition.params) {
+        if (param.kind !== 'select') continue;
+        const index = Math.round(param.default as number);
+        expect(index).toBeGreaterThanOrEqual(0);
+        expect(index).toBeLessThan((param.options ?? []).length);
+      }
+    }
+  });
+
+  it('builds an instance for every registered effect', () => {
+    for (const definition of allEffectDefinitions()) {
+      const instance = createEffectInstance(definition.matchName);
+      expect(instance, definition.name).toBeDefined();
+      expect(Object.keys(instance!.params)).toHaveLength(definition.params.length);
+    }
+  });
+});

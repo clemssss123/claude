@@ -562,3 +562,10 @@ input:focus, select:focus { outline: 1px solid var(--accent); }
 }
 .expression-row.has-error .expr-input { border-color: #8f3b3b; }
 .stopwatch.expr { color: var(--accent); }
+
+.curve-control-row { display: grid; place-items: center; padding: 6px 0; }
+.curve-control {
+  border: 1px solid var(--border-soft);
+  border-radius: 2px;
+  cursor: crosshair;
+}
