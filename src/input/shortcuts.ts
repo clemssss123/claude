@@ -711,6 +711,14 @@ export const SHORTCUTS: Shortcut[] = [
     status: 'ready',
     run: () => { void openProjectFile(); },
   },
+  {
+    id: 'project.import',
+    label: 'Import footage',
+    keys: ['ctrl+i'],
+    category: 'Edit',
+    status: 'ready',
+    run: (s) => { void s.promptImportFootage(); },
+  },
 
   // -- View ----------------------------------------------------------------
   {

@@ -11,9 +11,10 @@ import {
   fontString, glyphTransform, layoutTextLayer, registerTextMeasurer,
 } from '@/core/text';
 import type {
-  Composition, EffectInstance, Id, Layer, PrecompLayer, PropertyValue, ShapeLayer,
+  Composition, EffectInstance, Id, Layer, MediaLayer, PrecompLayer, PropertyValue, ShapeLayer,
   TextLayer,
 } from '@/core/types';
+import { footageDrawable, requestFootageTime } from './assets';
 import { canvasBlendMode } from './blendMode';
 import { BufferPool } from './buffers';
 import type { Buffer } from './buffers';
@@ -560,9 +561,25 @@ function drawLayerContent(ctx: Ctx2D, layer: Layer, time: number, scale: number)
     case 'precomp':
       drawPrecompLayer(ctx, layer, time, scale);
       break;
+    case 'media':
+      drawMediaLayer(ctx, layer, time);
+      break;
     default:
       break;
   }
+}
+
+/**
+ * Imported footage. A still draws directly; a video is asked for the frame
+ * at its source time and draws whichever frame it currently holds, so
+ * scrubbing stays responsive and the viewer repaints once the seek lands.
+ * Time Remapping works here for free, through `sourceTimeAt`.
+ */
+function drawMediaLayer(ctx: Ctx2D, layer: MediaLayer, time: number): void {
+  requestFootageTime(layer.assetId, sourceTimeAt(layer, time));
+  const drawable = footageDrawable(layer.assetId);
+  if (!drawable) return;
+  ctx.drawImage(drawable, 0, 0, layer.width, layer.height);
 }
 
 /**

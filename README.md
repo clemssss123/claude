@@ -163,6 +163,25 @@ that API fall back to a download and a file picker. Separately the project is
 snapshotted into IndexedDB every fifteen seconds, and a new session offers that
 snapshot back rather than loading over your work.
 
+**Footage import** (Ctrl+I, the Import button, or drop files on the Project
+panel) brings in images and video. The Project panel lists what you imported
+with a thumbnail, size and duration; double-click an item, or press its **+**,
+to add it to the composition as a layer that starts at the composition's centre
+and ends where the clip does. A still runs the whole composition.
+
+The project file records what each item *is* — name, size, duration, format —
+and the bytes live in the browser's storage beside the autosave, so project
+files stay small and reopen with their media intact. Open a project on a
+machine that does not hold those bytes and the item shows as **missing**, with
+a Relink button that points it at the file again, the way After Effects does;
+the layers using it keep their keyframes throughout.
+
+Video seeking is asynchronous, so the two consumers treat it differently: the
+viewer draws whichever frame is decoded and repaints when the seek lands, which
+keeps scrubbing responsive, while export takes sole control of the videos and
+waits for every seek before encoding its frame. Time Remapping works on footage
+as well as pre-comps.
+
 ### Editor
 
 **Composition viewer** — Canvas2D render with per-layer blend modes, masks,
@@ -196,7 +215,7 @@ a single history step.
 Interpolation (Ctrl+Alt+K), Effects & Presets (Ctrl+5) and the keymap (F1).
 
 **Keyboard** — the After Effects keymap lives in one table
-(`src/input/shortcuts.ts`). 99 of 100 bindings are live; the one that is not is
+(`src/input/shortcuts.ts`). 100 of 101 bindings are live; the one that is not is
 Reveal Audio Levels, because audio layers are not part of this build; it is
 still registered against its real AE chord and shown as unavailable. Press
 **F1** for the list. Double-tap chords (UU/MM/EE) are handled.
@@ -213,8 +232,12 @@ need is not built.
 
 Collapse Transformations is stored on pre-comp layers so projects round-trip,
 but the renderer still composites a nested composition as its own frame rather
-than passing the inner layers through. Time remapping applies to pre-comps,
-which are the only layers here with a source to remap.
+than passing the inner layers through.
+
+Imported video plays no sound: there are no audio layers, and a footage layer
+is decoded for its frames only. Frame rate is not exposed to a browser, so an
+imported clip is described at 30 fps; this affects the label, not the frames
+that are drawn, which always come from the clip's own timeline.
 
 Also unbuilt: variable-width mask feather (per-point feather geometry), Merge
 Paths on shape layers, and keyframing of a text layer's source string. Offset

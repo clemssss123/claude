@@ -10,6 +10,7 @@ import { clonePath, pathSegments, transformPath, vertex } from '@/core/path';
 import type { BezierPath } from '@/core/path';
 import { motionPathPoints, spatialInTangent, spatialOutTangent } from '@/core/spatial';
 import { hitTestLayers } from '@/render/hit';
+import { onFootageFrameReady } from '@/render/assets';
 import { renderComposition } from '@/render/renderer';
 import { useEditor } from '@/state/store';
 import type { Composition, Keyframe, Layer, Vec2 } from '@/core/types';
@@ -128,6 +129,10 @@ export function ViewerPanel() {
     [p[0] * zoom + origin[0], p[1] * zoom + origin[1]]
   ), [origin, zoom]);
 
+  // A video seek lands asynchronously; this redraws the frame when it does.
+  const [footageTick, setFootageTick] = useState(0);
+  useEffect(() => onFootageFrameReady(() => setFootageTick((n) => n + 1)), []);
+
   // -- composition render -------------------------------------------------
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -145,7 +150,7 @@ export function ViewerPanel() {
     });
     // Expression errors surface after the frame that produced them.
     useEditor.getState().refreshExpressionErrors();
-  }, [comp, project, time, viewer.resolution, viewer.showTransparencyGrid]);
+  }, [comp, project, time, viewer.resolution, viewer.showTransparencyGrid, footageTick]);
 
   // -- overlay (selection, handles, motion path) --------------------------
   useEffect(() => {

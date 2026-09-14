@@ -11,6 +11,7 @@ export function createProject(name = 'Untitled Project'): Project {
     name,
     version: PROJECT_SCHEMA_VERSION,
     compositions: [comp],
+    footage: [],
     activeCompId: comp.id,
   };
 }
@@ -87,5 +88,7 @@ export function deserializeProject(json: string): Project {
       `Project was saved by a newer version (schema ${parsed.version}).`,
     );
   }
+  // Projects saved before footage import existed have no list at all.
+  if (!Array.isArray(parsed.footage)) parsed.footage = [];
   return parsed;
 }

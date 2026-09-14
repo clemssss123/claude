@@ -8,9 +8,9 @@ import { positionAtTime } from './spatial';
 import { layoutTextLayer } from './text';
 import { uid } from './uid';
 import type {
-  AdjustmentLayer, AnyProperty, Composition, Id, Layer, LayerBase, Mask, NullLayer,
-  PrecompLayer, Property, PropertyValue, RGBA, ShapeItem, ShapeLayer, ShapeTransform,
-  SolidLayer, TextLayer, TransformGroup, Vec2,
+  AdjustmentLayer, AnyProperty, Composition, FootageAsset, Id, Layer, LayerBase, Mask,
+  MediaLayer, NullLayer, PrecompLayer, Property, PropertyValue, RGBA, ShapeItem,
+  ShapeLayer, ShapeTransform, SolidLayer, TextLayer, TransformGroup, Vec2,
 } from './types';
 import { MASK_COLORS } from './types';
 
@@ -125,6 +125,20 @@ export function createTextLayer(comp: Composition, source: string): TextLayer {
   };
   // Text is anchored at its own origin rather than a source rectangle.
   layer.transform.anchorPoint.value = [0, 0];
+  return layer;
+}
+
+/** A layer showing an imported image or video, sized to the footage. */
+export function createMediaLayer(comp: Composition, asset: FootageAsset): MediaLayer {
+  const layer: MediaLayer = {
+    ...baseLayer({ name: asset.name, width: asset.width, height: asset.height, comp }),
+    type: 'media',
+    assetId: asset.id,
+  };
+  // A still fills the layer's whole span; a clip runs for its own length.
+  if (asset.duration > 0) {
+    layer.outPoint = Math.min(comp.duration, asset.duration);
+  }
   return layer;
 }
 

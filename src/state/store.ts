@@ -4,15 +4,22 @@ import {
   removeLayer, uniqueLayerName,
 } from '@/core/composition';
 import {
-  allProperties, createAdjustmentLayer, createMask, createNullLayer, createPrecompLayer,
-  createShapeLayer, createSolidLayer, createTextLayer, enableTimeRemap, getProperty,
-  layerBounds, wouldCreateCycle,
+  allProperties, createAdjustmentLayer, createMask, createMediaLayer, createNullLayer,
+  createPrecompLayer, createShapeLayer, createSolidLayer, createTextLayer,
+  enableTimeRemap, getProperty, layerBounds, wouldCreateCycle,
 } from '@/core/layer';
 import {
   createEllipseShape, createFill, createOffsetPaths, createPathShape, createRectShape,
   createRepeater, createShapeGroup, createStarShape, createStroke, createTrimPaths,
 } from '@/core/shapes';
 import { createRangeSelector, createTextAnimator } from '@/core/text';
+import { uid } from '@/core/uid';
+import {
+  probeFootageFile, registerFootage, releaseAllFootage, releaseFootage,
+} from '@/render/assets';
+import {
+  deleteFootage, presentFootageIds, readFootage, writeFootage,
+} from '@/state/persistence';
 import { createEffectInstance } from '@/render/effects';
 import { applyBezierToSegment, bakeIntoSegment, loadCustomPresets, saveCustomPresets } from '@/core/easings';
 import type { EasingPreset } from '@/core/easings';
@@ -29,8 +36,8 @@ import { activeComposition, createStarterProject } from '@/core/project';
 import { spatialInTangent, spatialOutTangent } from '@/core/spatial';
 import { snapToFrame } from '@/core/time';
 import type {
-  BlendMode, Composition, Ease, Id, InterpolationType, Keyframe, Layer, Mask,
-  Project, Property, PropertyValue, RGBA, ShapeItem, SpatialType,
+  BlendMode, Composition, Ease, FootageAsset, Id, InterpolationType, Keyframe, Layer,
+  Mask, Project, Property, PropertyValue, RGBA, ShapeItem, SpatialType,
   TangentMode, TextAnimatorProperties, TrackMatteType, Vec2,
 } from '@/core/types';
 
@@ -183,6 +190,15 @@ export interface EditorState {
   addShapeLayerFromPath: (path: BezierPath) => void;
   addShapeItem: (layerId: Id, kind: 'fill' | 'stroke' | 'trim' | 'repeater' | 'offset') => void;
   removeShapeItem: (layerId: Id, path: string) => void;
+
+  // -- footage ---------------------------------------------------------------
+  importFootage: (files: FileList | File[]) => Promise<void>;
+  /** Open the system file picker, then import whatever was chosen. */
+  promptImportFootage: () => Promise<void>;
+  removeFootage: (assetId: Id) => Promise<void>;
+  relinkFootage: (assetId: Id) => Promise<void>;
+  addFootageToComp: (assetId: Id) => void;
+  loadProjectFootage: () => Promise<void>;
 
   // -- precomps and time -----------------------------------------------------
   precompose: (name?: string) => void;
@@ -777,6 +793,133 @@ export const useEditor = create<EditorState>()((set, get) => ({
     set({ selectedProperties: [], selectedKeyframes: [] });
   },
 
+  importFootage: async (files) => {
+    const list = Array.from(files);
+    if (list.length === 0) return;
+    let imported = 0;
+    const failures: string[] = [];
+
+    for (const file of list) {
+      if (!file.type.startsWith('image/') && !file.type.startsWith('video/')) {
+        failures.push(`${file.name} is not an image or a video`);
+        continue;
+      }
+      try {
+        const probed = await probeFootageFile(file);
+        const asset: FootageAsset = { ...probed, id: uid('asset') };
+        // Store the bytes first: an asset the browser cannot keep is worse
+        // than one that never appeared.
+        await writeFootage(asset.id, file);
+        await registerFootage(asset, file);
+        get().mutate('Import Footage', (project) => { project.footage.push(asset); });
+        imported += 1;
+      } catch (error) {
+        failures.push(error instanceof Error ? error.message : `${file.name} could not be read`);
+      }
+    }
+
+    set({
+      statusMessage: failures.length > 0
+        ? `Imported ${imported}; ${failures[0]}${failures.length > 1 ? ` (+${failures.length - 1} more)` : ''}.`
+        : `Imported ${imported} item${imported === 1 ? '' : 's'}.`,
+    });
+  },
+
+  promptImportFootage: async () => {
+    const files = await pickFiles('image/*,video/*');
+    if (files.length > 0) await get().importFootage(files);
+  },
+
+  removeFootage: async (assetId) => {
+    const comp = currentComp(get().project);
+    const used = comp?.layers.some((l) => l.type === 'media' && l.assetId === assetId);
+    get().mutate('Remove Footage', (project) => {
+      project.footage = project.footage.filter((asset) => asset.id !== assetId);
+      // Layers pointing at footage that is gone would render nothing, so
+      // they go with it.
+      for (const composition of project.compositions) {
+        composition.layers = composition.layers.filter(
+          (layer) => !(layer.type === 'media' && layer.assetId === assetId),
+        );
+      }
+    });
+    releaseFootage(assetId);
+    await deleteFootage(assetId);
+    set({
+      selectedLayerIds: [],
+      statusMessage: used ? 'Removed the footage and the layers using it.' : 'Removed the footage.',
+    });
+  },
+
+  relinkFootage: async (assetId) => {
+    const asset = get().project.footage.find((item) => item.id === assetId);
+    if (!asset) return;
+
+    const file = await pickFile(asset.kind === 'video' ? 'video/*' : 'image/*');
+    if (!file) return;
+    try {
+      const probed = await probeFootageFile(file);
+      await writeFootage(assetId, file);
+      await registerFootage({ ...asset, ...probed, id: assetId }, file);
+      get().mutate('Relink Footage', (project) => {
+        const target = project.footage.find((item) => item.id === assetId);
+        if (!target) return;
+        // Keep the id and the layers that reference it; take the new file's
+        // measurements, since a relink is often to a different render.
+        Object.assign(target, probed, { id: assetId, missing: false });
+      });
+      set({ statusMessage: `Relinked ${asset.name} to ${file.name}.` });
+    } catch (error) {
+      set({ statusMessage: error instanceof Error ? error.message : 'Could not relink that file.' });
+    }
+  },
+
+  addFootageToComp: (assetId) => {
+    const asset = get().project.footage.find((item) => item.id === assetId);
+    if (!asset) return;
+    if (asset.missing) {
+      set({ statusMessage: `${asset.name} is missing — relink it first.` });
+      return;
+    }
+    let newId: Id | null = null;
+    get().mutateComp('New Footage Layer', (c) => {
+      newId = addLayer(c, createMediaLayer(c, asset)).id;
+    });
+    if (newId) get().selectLayer(newId);
+  },
+
+  loadProjectFootage: async () => {
+    const assets = get().project.footage;
+    releaseAllFootage();
+    if (assets.length === 0) return;
+
+    const present = await presentFootageIds(assets.map((asset) => asset.id));
+    for (const asset of assets) {
+      if (!present.has(asset.id)) continue;
+      const blob = await readFootage(asset.id);
+      if (!blob) continue;
+      try {
+        await registerFootage(asset, blob);
+      } catch {
+        present.delete(asset.id);
+      }
+    }
+
+    // Anything the browser no longer holds is shown as missing rather than
+    // quietly rendering nothing.
+    const missing = assets.filter((asset) => !present.has(asset.id));
+    if (missing.length > 0 || assets.some((asset) => asset.missing)) {
+      get().mutate('Check Footage', (project) => {
+        for (const asset of project.footage) asset.missing = !present.has(asset.id);
+      });
+    }
+    if (missing.length > 0) {
+      set({
+        statusMessage: `${missing.length} footage item${missing.length === 1 ? ' is' : 's are'} missing — relink from the Project panel.`,
+      });
+    }
+  },
+
   precompose: (name) => {
     const state = get();
     const comp = currentComp(state.project);
@@ -829,16 +972,19 @@ export const useEditor = create<EditorState>()((set, get) => ({
     const comp = currentComp(state.project);
     const layer = comp && findLayer(comp, layerId);
     if (!layer) return;
-    if (layer.type !== 'precomp') {
-      set({ statusMessage: 'Time Remapping applies to pre-composition layers.' });
+    if (layer.type !== 'precomp' && layer.type !== 'media') {
+      set({ statusMessage: 'Time Remapping applies to footage and pre-composition layers.' });
       return;
     }
-    const source = state.project.compositions.find((c) => c.id === layer.compId);
+    // A pre-comp's source is a composition; footage's source is the asset.
+    const sourceDuration = layer.type === 'precomp'
+      ? state.project.compositions.find((c) => c.id === layer.compId)?.duration
+      : state.project.footage.find((a) => a.id === layer.assetId)?.duration;
     get().mutateComp(layer.timeRemap ? 'Disable Time Remapping' : 'Enable Time Remapping', (c) => {
       const target = findLayer(c, layerId);
       if (!target) return;
       if (target.timeRemap) target.timeRemap = null;
-      else enableTimeRemap(target, source?.duration ?? c.duration);
+      else enableTimeRemap(target, sourceDuration ?? c.duration);
     });
     get().revealAll(layerId);
   },
@@ -1564,16 +1710,21 @@ export const useEditor = create<EditorState>()((set, get) => ({
     }, { coalesceKey: 'workAreaEnd' });
   },
 
-  loadProject: (project) => set({
-    project: syncExpressions(project),
-    past: [],
-    future: [],
-    time: 0,
-    selectedLayerIds: [],
-    selectedKeyframes: [],
-    revealed: {},
-    expanded: {},
-  }),
+  loadProject: (project) => {
+    set({
+      project: syncExpressions(project),
+      past: [],
+      future: [],
+      time: 0,
+      selectedLayerIds: [],
+      selectedKeyframes: [],
+      revealed: {},
+      expanded: {},
+    });
+    // The document names its footage; the bytes come back from storage, and
+    // anything this browser does not hold is marked missing.
+    void get().loadProjectFootage();
+  },
 }));
 
 /** Walk a dotted path on a layer, returning whatever sits there. */
@@ -1644,6 +1795,30 @@ function reidentify(layer: Layer): void {
       kf.id = `${kf.id}_${Math.random().toString(36).slice(2, 7)}`;
     }
   }
+}
+
+/** Open a file picker and resolve with the chosen file, or null. */
+function pickFiles(accept: string): Promise<File[]> {
+  return new Promise((resolve) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = accept;
+    input.multiple = true;
+    input.onchange = () => resolve(Array.from(input.files ?? []));
+    input.oncancel = () => resolve([]);
+    input.click();
+  });
+}
+
+function pickFile(accept: string): Promise<File | null> {
+  return new Promise((resolve) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = accept;
+    input.onchange = () => resolve(input.files?.[0] ?? null);
+    input.oncancel = () => resolve(null);
+    input.click();
+  });
 }
 
 const SOLID_COLORS = ['#e05a5a', '#5a8fe0', '#5ae09a', '#e0c25a', '#a45ae0', '#e08a5a'];

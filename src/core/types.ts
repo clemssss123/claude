@@ -392,6 +392,12 @@ export interface ShapeLayer extends LayerBase {
   contents: ShapeItem[];
 }
 
+/** An imported image or video placed in a composition. */
+export interface MediaLayer extends LayerBase {
+  type: 'media';
+  assetId: Id;
+}
+
 /** A composition used as a layer inside another composition. */
 export interface PrecompLayer extends LayerBase {
   type: 'precomp';
@@ -404,7 +410,8 @@ export interface PrecompLayer extends LayerBase {
 }
 
 export type Layer =
-  | SolidLayer | NullLayer | AdjustmentLayer | TextLayer | ShapeLayer | PrecompLayer;
+  | SolidLayer | NullLayer | AdjustmentLayer | TextLayer | ShapeLayer
+  | PrecompLayer | MediaLayer;
 
 export interface Marker {
   id: Id;
@@ -441,11 +448,38 @@ export interface Composition {
   motionBlur: MotionBlurSettings;
 }
 
+/**
+ * An imported image or video.
+ *
+ * Only the description lives in the project file; the pixels live in the
+ * browser's own storage, keyed by this id. A project that travels to another
+ * machine therefore stays small and arrives with its footage marked missing
+ * until it is relinked.
+ */
+export interface FootageAsset {
+  id: Id;
+  name: string;
+  kind: 'image' | 'video';
+  width: number;
+  height: number;
+  /** Seconds; zero for a still. */
+  duration: number;
+  /** Best guess for video, used when a layer is created from it. */
+  frameRate: number;
+  /** Source file size in bytes, for the Project panel. */
+  size: number;
+  /** MIME type of the original file, so a relink can be checked against it. */
+  mimeType: string;
+  /** True when the binary is not present in this browser. */
+  missing?: boolean;
+}
+
 export interface Project {
   name: string;
   /** Schema version, so old files can be migrated. */
   version: number;
   compositions: Composition[];
+  footage: FootageAsset[];
   activeCompId: Id | null;
 }
 

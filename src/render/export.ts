@@ -2,6 +2,7 @@ import { Muxer as Mp4Muxer, ArrayBufferTarget as Mp4Target } from 'mp4-muxer';
 import { Muxer as WebmMuxer, ArrayBufferTarget as WebmTarget } from 'webm-muxer';
 import { setExpressionContext } from '@/core/expressions';
 import type { Composition, Id, Project } from '@/core/types';
+import { beginExclusiveFootage, prepareFootageForTime } from './assets';
 import { renderComposition } from './renderer';
 import { ZipWriter } from './zip';
 
@@ -155,8 +156,12 @@ export async function exportComposition(context: ExportContext): Promise<ExportR
   // Expressions resolve layers by name, so point them at what we are rendering.
   setExpressionContext(project, comp);
   const resolveComposition = (id: Id) => project.compositions.find((c) => c.id === id);
-  const renderFrame = (frame: number) => {
-    renderComposition(ctx, comp, start + frame / comp.frameRate, {
+  const renderFrame = async (frame: number) => {
+    const time = start + frame / comp.frameRate;
+    // Unlike the viewer, export cannot draw a stale video frame and repaint
+    // later: every seek has to land before the frame is encoded.
+    await prepareFootageForTime(comp, time, resolveComposition);
+    renderComposition(ctx, comp, time, {
       // renderComposition divides by resolution, so this is the inverse scale.
       resolution: 1 / settings.scale,
       showTransparencyGrid: false,
@@ -166,16 +171,21 @@ export async function exportComposition(context: ExportContext): Promise<ExportR
 
   const name = comp.name.replace(/[^\w.-]+/g, '-').toLowerCase();
 
-  if (settings.format === 'png') {
-    return exportPngSequence(context, canvas, renderFrame, total, name);
+  const releaseFootageControl = beginExclusiveFootage();
+  try {
+    if (settings.format === 'png') {
+      return await exportPngSequence(context, canvas, renderFrame, total, name);
+    }
+    return await exportVideo(context, canvas, renderFrame, total, width, height, name);
+  } finally {
+    releaseFootageControl();
   }
-  return exportVideo(context, canvas, renderFrame, total, width, height, name);
 }
 
 async function exportPngSequence(
   { settings, onProgress, signal }: ExportContext,
   canvas: HTMLCanvasElement | OffscreenCanvas,
-  renderFrame: (frame: number) => void,
+  renderFrame: (frame: number) => Promise<void>,
   total: number,
   name: string,
 ): Promise<ExportResult> {
@@ -184,7 +194,7 @@ async function exportPngSequence(
 
   for (let frame = 0; frame < total; frame += 1) {
     if (signal?.cancelled) throw new Error('Export cancelled.');
-    renderFrame(frame);
+    await renderFrame(frame);
     const blob = await toBlob(canvas, 'image/png');
     zip.add(
       `${name}_${String(frame).padStart(digits, '0')}.png`,
@@ -203,7 +213,7 @@ async function exportPngSequence(
 async function exportVideo(
   { comp, settings, onProgress, signal }: ExportContext,
   canvas: HTMLCanvasElement | OffscreenCanvas,
-  renderFrame: (frame: number) => void,
+  renderFrame: (frame: number) => Promise<void>,
   total: number,
   width: number,
   height: number,
@@ -259,7 +269,7 @@ async function exportVideo(
     }
     if (encodeError) throw encodeError;
 
-    renderFrame(frame);
+    await renderFrame(frame);
     const videoFrame = new VideoFrame(canvas as CanvasImageSource, {
       timestamp: Math.round(frame * frameDuration),
       duration: Math.round(frameDuration),

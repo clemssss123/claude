@@ -119,7 +119,7 @@ function LayerRow({ comp, layerId, index, selected }: {
           if (layer.type === 'precomp') useEditor.getState().openPrecompSource(layerId);
         }}
       >
-        {layer.type === 'precomp' ? '▣ ' : ''}{layer.name}
+        {layer.type === 'precomp' ? '▣ ' : layer.type === 'media' ? '🎞 ' : ''}{layer.name}
       </span>
       <div className="switches">
         {toggle('shy')}

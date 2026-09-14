@@ -11,8 +11,9 @@ import type { Project } from '@/core/types';
  */
 
 const DB_NAME = 'keyframe-studio';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const STORE = 'autosave';
+const FOOTAGE_STORE = 'footage';
 const SNAPSHOT_KEY = 'current';
 
 interface Snapshot {
@@ -137,6 +138,9 @@ function openDatabase(): Promise<IDBDatabase | null> {
       if (!request.result.objectStoreNames.contains(STORE)) {
         request.result.createObjectStore(STORE);
       }
+      if (!request.result.objectStoreNames.contains(FOOTAGE_STORE)) {
+        request.result.createObjectStore(FOOTAGE_STORE);
+      }
     };
     request.onsuccess = () => resolve(request.result);
     // Private browsing and blocked storage are ordinary conditions here.
@@ -190,6 +194,78 @@ export async function clearAutoSave(): Promise<void> {
       tx.oncomplete = () => resolve();
       tx.onerror = () => resolve();
     });
+  } finally {
+    db.close();
+  }
+}
+
+// -- footage blobs ---------------------------------------------------------
+
+/**
+ * Imported media is kept here rather than in the project file, so a project
+ * stays small and text-only while its footage survives a reload.
+ */
+export async function writeFootage(id: string, blob: Blob): Promise<void> {
+  const db = await openDatabase();
+  if (!db) throw new Error('This browser will not store imported footage.');
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(FOOTAGE_STORE, 'readwrite');
+      tx.objectStore(FOOTAGE_STORE).put(blob, id);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error ?? new Error('Could not store the footage.'));
+    });
+  } finally {
+    db.close();
+  }
+}
+
+export async function readFootage(id: string): Promise<Blob | null> {
+  const db = await openDatabase();
+  if (!db) return null;
+  try {
+    return await new Promise<Blob | null>((resolve) => {
+      const tx = db.transaction(FOOTAGE_STORE, 'readonly');
+      const request = tx.objectStore(FOOTAGE_STORE).get(id);
+      request.onsuccess = () => resolve((request.result as Blob | undefined) ?? null);
+      request.onerror = () => resolve(null);
+    });
+  } finally {
+    db.close();
+  }
+}
+
+export async function deleteFootage(id: string): Promise<void> {
+  const db = await openDatabase();
+  if (!db) return;
+  try {
+    await new Promise<void>((resolve) => {
+      const tx = db.transaction(FOOTAGE_STORE, 'readwrite');
+      tx.objectStore(FOOTAGE_STORE).delete(id);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => resolve();
+    });
+  } finally {
+    db.close();
+  }
+}
+
+/** Which of these assets actually have their bytes in this browser. */
+export async function presentFootageIds(ids: string[]): Promise<Set<string>> {
+  const db = await openDatabase();
+  if (!db) return new Set();
+  try {
+    const present = new Set<string>();
+    await Promise.all(ids.map((id) => new Promise<void>((resolve) => {
+      const tx = db.transaction(FOOTAGE_STORE, 'readonly');
+      const request = tx.objectStore(FOOTAGE_STORE).getKey(id);
+      request.onsuccess = () => {
+        if (request.result !== undefined) present.add(id);
+        resolve();
+      };
+      request.onerror = () => resolve();
+    })));
+    return present;
   } finally {
     db.close();
   }

@@ -608,3 +608,72 @@ input:focus, select:focus { outline: 1px solid var(--accent); }
   color: var(--text-bright);
 }
 .restore-bar span { flex: 1; }
+
+/* -- Project panel footage ------------------------------------------------ */
+
+.panel > .body.drop-target {
+  outline: 1px dashed var(--accent);
+  outline-offset: -3px;
+  background: rgba(74, 134, 255, 0.06);
+}
+
+.footage-list {
+  border-top: 1px solid var(--border-soft);
+  margin-top: 4px;
+}
+
+.footage-empty {
+  padding: 10px 8px;
+  color: var(--text-dim);
+  font-style: italic;
+}
+
+.footage-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  background: var(--bg-row);
+  border-bottom: 1px solid var(--border);
+  cursor: default;
+  user-select: none;
+}
+
+.footage-row:hover { background: var(--bg-row-alt); }
+.footage-row.missing .footage-name { color: #e08a5a; }
+
+.footage-thumb {
+  width: 44px;
+  height: 30px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-input);
+  border: 1px solid var(--border-soft);
+  overflow: hidden;
+}
+
+.footage-thumb img {
+  max-width: 100%;
+  max-height: 100%;
+  display: block;
+}
+
+.footage-meta { flex: 1; min-width: 0; }
+
+.footage-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.footage-detail {
+  color: var(--text-dim);
+  font-size: 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.footage-actions { display: flex; flex: none; }
