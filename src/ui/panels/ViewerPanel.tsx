@@ -141,7 +141,10 @@ export function ViewerPanel() {
     renderComposition(ctx, comp, time, {
       resolution: viewer.resolution,
       showTransparencyGrid: viewer.showTransparencyGrid,
+      resolveComposition: (id) => project.compositions.find((c) => c.id === id),
     });
+    // Expression errors surface after the frame that produced them.
+    useEditor.getState().refreshExpressionErrors();
   }, [comp, project, time, viewer.resolution, viewer.showTransparencyGrid]);
 
   // -- overlay (selection, handles, motion path) --------------------------

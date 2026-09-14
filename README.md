@@ -1,7 +1,7 @@
 # Keyframe Studio
 
 A browser-based 2D motion graphics compositor modeled on Adobe After Effects.
-TypeScript + React, no 3D. Built in phases; this repository is at **phase 4**.
+TypeScript + React, no 3D. Built in phases; this repository is at **phase 5**.
 
 ```bash
 npm install
@@ -59,15 +59,19 @@ Keyframe Velocity (Ctrl+Shift+K) and Keyframe Interpolation (Ctrl+Alt+K)
 dialogs edit the same handles numerically.
 
 **Keyboard** — the After Effects keymap lives in one table
-(`src/input/shortcuts.ts`). 92 of 97 bindings are live; the rest are registered
+(`src/input/shortcuts.ts`). 96 of 98 bindings are live; the rest are registered
 against their real AE chord and shown greyed out with the phase that implements
 them. Press **F1** for the list. Double-tap chords (UU/MM/EE) are handled.
 
 ## What is not built yet
 
-Phases 5–7 from the plan: the remaining effects on the way to 50–100, motion
-blur rendering (settings are stored and editable now), expressions, precomps,
-time remapping, and WebCodecs export.
+Phases 6–7 from the plan: the remaining effects on the way to 50–100, and
+WebCodecs export.
+
+Collapse Transformations is stored on pre-comp layers so projects round-trip,
+but the renderer still composites a nested composition as its own frame rather
+than passing the inner layers through. Time remapping applies to pre-comps,
+which are the only layers here with a source to remap.
 
 Within phase 3's areas, three things are deliberately not built: variable-width
 mask feather (per-point feather geometry), Merge Paths on shape layers, and
@@ -81,7 +85,7 @@ pretending.
 
 ```
 src/core/     document model, paths, shapes, text, interpolation, easings,
-              motion paths — no React, no DOM
+              motion paths, expressions — no React, no DOM
 src/render/   Canvas2D compositor: buffers, masks, mattes, hit testing
 src/render/effects/  the effect registry and every built-in effect
 src/state/    zustand store, undo history, playback transport

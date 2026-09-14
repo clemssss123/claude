@@ -14,6 +14,10 @@ export type TimelineRow =
   | {
       kind: 'prop'; layerId: Id; key: string; path: string;
       property: AnyProperty; name: string; depth: number;
+    }
+  | {
+      kind: 'expression'; layerId: Id; key: string; path: string;
+      property: AnyProperty; depth: number;
     };
 
 /**
@@ -49,6 +53,16 @@ export function buildRows(
           name: node.name,
           depth: node.depth,
         });
+        if (node.property.expression !== null && node.property.expression !== undefined) {
+          rows.push({
+            kind: 'expression',
+            layerId: layer.id,
+            key: `${layer.id}:${node.path}:expr`,
+            path: node.path,
+            property: node.property,
+            depth: node.depth + 1,
+          });
+        }
       } else if (node.childPaths.some((path) => visible.has(path))) {
         rows.push({
           kind: 'group',

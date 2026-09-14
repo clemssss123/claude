@@ -548,3 +548,17 @@ input:focus, select:focus { outline: 1px solid var(--accent); }
 }
 .fx-grid { display: flex; flex-wrap: wrap; gap: 5px; }
 .fx-chip { padding: 4px 9px; }
+
+/* -- expressions --------------------------------------------------------- */
+.expression-row { background: #1f2430; gap: 6px; }
+.expression-row.has-error { background: #35222a; }
+.expr-mark { color: var(--accent); font: var(--mono); }
+.expression-row.has-error .expr-mark { color: #ff6b6b; }
+.expr-input {
+  flex: 1;
+  font: var(--mono);
+  background: var(--bg-input);
+  border: 1px solid var(--border-soft);
+}
+.expression-row.has-error .expr-input { border-color: #8f3b3b; }
+.stopwatch.expr { color: var(--accent); }

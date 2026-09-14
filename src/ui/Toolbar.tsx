@@ -38,6 +38,8 @@ export function Toolbar() {
       <button title="New Adjustment Layer (Ctrl+Alt+Y)" onClick={() => store.addAdjustment()}>Adjustment</button>
       <button title="New Shape Layer with a rectangle" onClick={() => store.addShapeLayer('rect')}>Shape</button>
       <div className="sep" />
+      <button title="Pre-compose (Ctrl+Shift+C)" onClick={() => store.precompose()}>Pre-compose</button>
+      <div className="sep" />
       <button title="Duplicate (Ctrl+D)" onClick={() => store.duplicateSelected()}>Duplicate</button>
       <button title="Delete (Delete)" onClick={() => store.deleteSelected()}>Delete</button>
       <div className="sep" />

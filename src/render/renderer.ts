@@ -1,5 +1,8 @@
-import { isLayerActiveAt, layerBounds, renderableLayers, worldMatrix } from '@/core/layer';
-import { translation } from '@/core/matrix';
+import { beginExpressionFrame } from '@/core/expressions';
+import {
+  allProperties, isLayerActiveAt, layerBounds, renderableLayers, sourceTimeAt, worldMatrix,
+} from '@/core/layer';
+import { applyToPoint, translation } from '@/core/matrix';
 import type { Matrix } from '@/core/matrix';
 import { rgbaToCss, valueAtTime } from '@/core/property';
 import { buildShapes } from '@/core/shapes';
@@ -8,7 +11,8 @@ import {
   fontString, glyphTransform, layoutTextLayer, registerTextMeasurer,
 } from '@/core/text';
 import type {
-  Composition, EffectInstance, Layer, PropertyValue, ShapeLayer, TextLayer,
+  Composition, EffectInstance, Id, Layer, PrecompLayer, PropertyValue, ShapeLayer,
+  TextLayer,
 } from '@/core/types';
 import { canvasBlendMode } from './blendMode';
 import { BufferPool } from './buffers';
@@ -26,6 +30,8 @@ export interface RenderOptions {
   resolution: number;
   /** Draw the checkerboard instead of the composition background colour. */
   showTransparencyGrid: boolean;
+  /** Lets precomposition layers find the composition they stand for. */
+  resolveComposition?: (id: Id) => Composition | undefined;
 }
 
 export const DEFAULT_RENDER_OPTIONS: RenderOptions = {
@@ -37,6 +43,15 @@ const CHECKER_SIZE = 16;
 /** Cap on the headroom an effect may claim outside a layer, in layer pixels. */
 const MAX_EFFECT_MARGIN = 600;
 const pool = new BufferPool();
+/** How deep into nested compositions the renderer currently is. */
+let renderDepth = 0;
+/** Deepest nesting the renderer will follow before giving up. */
+const MAX_PRECOMP_DEPTH = 8;
+
+/** Buffer name scoped to the current nesting depth. */
+function scoped(name: string): string {
+  return renderDepth === 0 ? name : `${name}@${renderDepth}`;
+}
 
 /**
  * Draw one frame of a composition into a 2D context.
@@ -56,6 +71,11 @@ export function renderComposition(
   options: RenderOptions = DEFAULT_RENDER_OPTIONS,
 ): void {
   const scale = 1 / options.resolution;
+  beginExpressionFrame();
+  resolveComposition = options.resolveComposition;
+  renderDepth = 0;
+
+  pool.resize(ctx.canvas.width, ctx.canvas.height);
 
   ctx.save();
   ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -69,8 +89,32 @@ export function renderComposition(
     ctx.fillStyle = rgbaToCss(comp.bgColor);
     ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
   }
+  ctx.restore();
 
-  pool.resize(ctx.canvas.width, ctx.canvas.height);
+  renderInto(ctx, comp, time, scale, true);
+}
+
+/**
+ * Composite a composition's layers onto a context that is already sized and
+ * cleared. Nested compositions reuse this, which is what makes precomps work.
+ */
+function renderInto(
+  ctx: CanvasRenderingContext2D,
+  comp: Composition,
+  time: number,
+  scale: number,
+  alreadyPrepared: boolean,
+): void {
+  if (!alreadyPrepared) {
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+    ctx.restore();
+  }
+
+  ctx.save();
 
   const layers = renderableLayers(comp);
   // A layer with a track matte consumes the layer directly above it, which is
@@ -92,10 +136,138 @@ export function renderComposition(
     }
 
     const matteLayer = layer.trackMatte !== 'none' && i > 0 ? layers[i - 1] : undefined;
-    compositeLayer(ctx, comp, layer, matteLayer, time, scale);
+    const samples = motionBlurSamples(comp, layer, time);
+    if (samples) compositeMotionBlurred(ctx, comp, layer, matteLayer, time, scale, samples);
+    else compositeLayer(ctx, comp, layer, matteLayer, time, scale);
   }
 
   ctx.restore();
+}
+
+// -- motion blur -----------------------------------------------------------
+
+/**
+ * The sub-frame times the shutter is open for, or null when this layer is not
+ * motion blurred.
+ *
+ * The shutter opens at `phase` degrees relative to the frame and stays open
+ * for `angle` degrees of it, so a 180° shutter at -90° phase is centred on the
+ * frame — the physically typical camera After Effects defaults to.
+ */
+function motionBlurSamples(comp: Composition, layer: Layer, time: number): number[] | null {
+  const settings = comp.motionBlur;
+  if (!settings.enabled || !layer.motionBlur) return null;
+
+  const frame = 1 / comp.frameRate;
+  const duration = (settings.shutterAngle / 360) * frame;
+  if (duration <= 0) return null;
+  const open = time + (settings.shutterPhase / 360) * frame;
+
+  // Adaptive sampling: a layer that travels further across the shutter needs
+  // more samples before the trail stops looking like separate copies.
+  const start = applyToPoint(worldMatrix(comp, layer, open), [0, 0]);
+  const end = applyToPoint(worldMatrix(comp, layer, open + duration), [0, 0]);
+  const travel = Math.hypot(end[0] - start[0], end[1] - start[1]);
+  const count = Math.min(
+    Math.max(2, Math.round(settings.adaptiveSampleLimit)),
+    Math.max(2, Math.round(Math.max(settings.samplesPerFrame, travel / 2))),
+  );
+
+  const times: number[] = [];
+  for (let i = 0; i < count; i += 1) {
+    times.push(open + duration * (i / (count - 1)));
+  }
+  return times;
+}
+
+/**
+ * Whether the layer's own content looks the same at every sub-frame time.
+ * When it does — the usual case of a layer that simply moves — the content is
+ * rendered once and only the transform is re-sampled.
+ */
+function contentIsTimeInvariant(layer: Layer): boolean {
+  return allProperties(layer).every((descriptor) => {
+    if (descriptor.path.startsWith('transform.')) return true;
+    return !descriptor.property.animated && !descriptor.property.expression;
+  });
+}
+
+function compositeMotionBlurred(
+  target: CanvasRenderingContext2D,
+  comp: Composition,
+  layer: Layer,
+  matteLayer: Layer | undefined,
+  time: number,
+  scale: number,
+  samples: number[],
+): void {
+  if (layer.type === 'null') return;
+
+  const width = target.canvas.width;
+  const height = target.canvas.height;
+  const accumulator = pool.sized(scoped('mbAccumulate'), width, height);
+  const frame = pool.sized(scoped('mbFrame'), width, height);
+
+  // Re-rendering content per sample is only necessary when it changes.
+  const invariant = contentIsTimeInvariant(layer);
+  const cached = invariant ? renderLayerInLayerSpace(layer, time, scale, scoped('mbLayer')) : null;
+  if (invariant && !cached) return;
+
+  const weight = 1 / samples.length;
+  for (const sampleTime of samples) {
+    const rendered = cached ?? renderLayerInLayerSpace(layer, sampleTime, scale, scoped('mbLayer'));
+    if (!rendered) continue;
+
+    frame.ctx.setTransform(1, 0, 0, 1, 0, 0);
+    frame.ctx.globalCompositeOperation = 'copy';
+    frame.ctx.globalAlpha = 1;
+    frame.ctx.clearRect(0, 0, width, height);
+    frame.ctx.globalCompositeOperation = 'source-over';
+
+    const matrix = worldMatrix(comp, layer, sampleTime);
+    frame.ctx.save();
+    frame.ctx.globalAlpha = Math.max(
+      0, Math.min(1, valueAtTime(layer.transform.opacity, sampleTime) / 100),
+    );
+    frame.ctx.scale(scale, scale);
+    frame.ctx.transform(matrix.a, matrix.b, matrix.c, matrix.d, matrix.e, matrix.f);
+    drawBufferInLayerSpace(frame.ctx, rendered);
+    frame.ctx.restore();
+
+    // Adding the weighted samples averages them, which is what a shutter does.
+    accumulator.ctx.globalCompositeOperation = 'lighter';
+    accumulator.ctx.globalAlpha = weight;
+    accumulator.ctx.drawImage(frame.canvas as CanvasImageSource, 0, 0);
+  }
+  accumulator.ctx.globalCompositeOperation = 'source-over';
+  accumulator.ctx.globalAlpha = 1;
+
+  if (matteLayer) {
+    const matte = pool.sized(scoped('matte'), width, height);
+    if (time >= matteLayer.inPoint && time < matteLayer.outPoint) {
+      const matteRendered = renderLayerInLayerSpace(matteLayer, time, scale, scoped('matteSrc'));
+      if (matteRendered) {
+        const matteMatrix = worldMatrix(comp, matteLayer, time);
+        matte.ctx.save();
+        matte.ctx.globalAlpha = valueAtTime(matteLayer.transform.opacity, time) / 100;
+        matte.ctx.scale(scale, scale);
+        matte.ctx.transform(
+          matteMatrix.a, matteMatrix.b, matteMatrix.c,
+          matteMatrix.d, matteMatrix.e, matteMatrix.f,
+        );
+        drawBufferInLayerSpace(matte.ctx, matteRendered);
+        matte.ctx.restore();
+      }
+    }
+    applyTrackMatte(accumulator.ctx, matte, layer.trackMatte, pool);
+  }
+
+  target.save();
+  target.setTransform(1, 0, 0, 1, 0, 0);
+  target.globalAlpha = 1;
+  target.globalCompositeOperation = canvasBlendMode(layer.blendMode);
+  target.drawImage(accumulator.canvas as CanvasImageSource, 0, 0);
+  target.restore();
 }
 
 // -- effects ---------------------------------------------------------------
@@ -187,13 +359,13 @@ function applyAdjustmentLayer(
   const width = target.canvas.width;
   const height = target.canvas.height;
 
-  const below = pool.sized('adjustBelow', width, height);
+  const below = pool.sized(scoped('adjustBelow'), width, height);
   below.ctx.drawImage(target.canvas as CanvasImageSource, 0, 0);
 
-  const result = runEffects(layer, time, below, width, height, scale, 'adjust');
+  const result = runEffects(layer, time, below, width, height, scale, scoped('adjust'));
 
   // Masks confine the adjustment; without them it covers the whole frame.
-  const limited = pool.sized('adjustOut', width, height);
+  const limited = pool.sized(scoped('adjustOut'), width, height);
   limited.ctx.drawImage(result.canvas as CanvasImageSource, 0, 0);
   applyMasks(
     limited.ctx, layer, time, pool, scale,
@@ -231,12 +403,12 @@ function compositeLayer(
     target.globalCompositeOperation = canvasBlendMode(layer.blendMode);
     target.scale(scale, scale);
     target.transform(matrix.a, matrix.b, matrix.c, matrix.d, matrix.e, matrix.f);
-    drawLayerContent(target, layer, time);
+    drawLayerContent(target, layer, time, scale);
     target.restore();
     return;
   }
 
-  const rendered = renderLayerInLayerSpace(layer, time, scale, 'layer');
+  const rendered = renderLayerInLayerSpace(layer, time, scale, scoped('layer'));
   if (!rendered) return;
 
   if (!matteLayer) {
@@ -254,18 +426,18 @@ function compositeLayer(
   // before its alpha can be intersected with the matte's.
   const width = target.canvas.width;
   const height = target.canvas.height;
-  const composed = pool.sized('layerComp', width, height);
+  const composed = pool.sized(scoped('layerComp'), width, height);
   composed.ctx.save();
   composed.ctx.scale(scale, scale);
   composed.ctx.transform(matrix.a, matrix.b, matrix.c, matrix.d, matrix.e, matrix.f);
   drawBufferInLayerSpace(composed.ctx, rendered);
   composed.ctx.restore();
 
-  const matte = pool.sized('matte', width, height);
+  const matte = pool.sized(scoped('matte'), width, height);
   // The matte layer's own visibility switch is irrelevant — After Effects
   // turns it off when the matte is assigned — but its timing still counts.
   if (time >= matteLayer.inPoint && time < matteLayer.outPoint) {
-    const matteRendered = renderLayerInLayerSpace(matteLayer, time, scale, 'matteSrc');
+    const matteRendered = renderLayerInLayerSpace(matteLayer, time, scale, scoped('matteSrc'));
     if (matteRendered) {
       const matteMatrix = worldMatrix(comp, matteLayer, time);
       matte.ctx.save();
@@ -322,7 +494,7 @@ function renderLayerInLayerSpace(
   const buffer = pool.sized(prefix, width, height);
   buffer.ctx.save();
   buffer.ctx.setTransform(scale, 0, 0, scale, -bounds.x * scale, -bounds.y * scale);
-  drawLayerContent(buffer.ctx, layer, time);
+  drawLayerContent(buffer.ctx, layer, time, scale);
   buffer.ctx.restore();
 
   applyMasks(
@@ -343,8 +515,11 @@ function drawBufferInLayerSpace(ctx: Ctx2D, rendered: LayerRender): void {
   );
 }
 
+/** Resolver for the composition currently being rendered, set per frame. */
+let resolveComposition: ((id: Id) => Composition | undefined) | undefined;
+
 /** Paint a layer's own content, with the layer transform already applied. */
-function drawLayerContent(ctx: Ctx2D, layer: Layer, time: number): void {
+function drawLayerContent(ctx: Ctx2D, layer: Layer, time: number, scale: number): void {
   switch (layer.type) {
     case 'solid':
       ctx.fillStyle = rgbaToCss(layer.color);
@@ -356,9 +531,45 @@ function drawLayerContent(ctx: Ctx2D, layer: Layer, time: number): void {
     case 'shape':
       drawShapeLayer(ctx, layer, time);
       break;
+    case 'precomp':
+      drawPrecompLayer(ctx, layer, time, scale);
+      break;
     default:
       break;
   }
+}
+
+/**
+ * A precomposition renders its source composition into its own frame and
+ * draws that frame as the layer's content. Time Remapping, when it is on,
+ * decides which frame of the source that is.
+ */
+function drawPrecompLayer(ctx: Ctx2D, layer: PrecompLayer, time: number, scale: number): void {
+  const source = resolveComposition?.(layer.compId);
+  if (!source || renderDepth >= MAX_PRECOMP_DEPTH) return;
+
+  const width = Math.max(1, Math.round(source.width * scale));
+  const height = Math.max(1, Math.round(source.height * scale));
+  const buffer = pool.sized(`precomp@${renderDepth}`, width, height);
+
+  const sourceTime = Math.max(0, Math.min(source.duration, sourceTimeAt(layer, time)));
+
+  renderDepth += 1;
+  try {
+    renderInto(
+      buffer.ctx as CanvasRenderingContext2D, source, sourceTime, scale,
+      // A nested composition contributes its own layers, not its background.
+      false,
+    );
+  } finally {
+    renderDepth -= 1;
+  }
+
+  ctx.drawImage(
+    buffer.canvas as CanvasImageSource,
+    0, 0, width, height,
+    0, 0, source.width, source.height,
+  );
 }
 
 // -- shape layers ----------------------------------------------------------

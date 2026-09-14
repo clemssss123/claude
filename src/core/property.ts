@@ -48,15 +48,43 @@ export function clampToRange(prop: Property, value: PropertyValue): PropertyValu
   return (value as number[]).map((v) => Math.min(hi, Math.max(lo, v))) as PropertyValue;
 }
 
-/** The property's value at a comp time, honouring the stopwatch. */
-export function valueAtTime<T extends PropertyValue>(prop: Property<T>, time: number): T;
-export function valueAtTime(prop: AnyProperty, time: number): PropertyValue;
-export function valueAtTime(prop: Property<PropertyValue>, time: number): PropertyValue {
+/**
+ * The property's value before any expression runs: the stopwatch, its
+ * keyframes, and its separated dimensions. Expressions need this to provide
+ * `value` without re-entering themselves.
+ */
+export function rawValueAtTime(prop: Property<PropertyValue>, time: number): PropertyValue {
   if (prop.separated && prop.dimensions) {
     return prop.dimensions.map((dim) => valueAtTime(dim, time)) as PropertyValue;
   }
   if (!prop.animated || prop.keyframes.length === 0) return prop.value;
   return evaluateKeyframes(prop.keyframes, time) ?? prop.value;
+}
+
+/**
+ * Expressions are evaluated by a module registered at start-up, so the
+ * document model stays free of the expression engine and its context.
+ */
+export type ExpressionEvaluator = (
+  prop: Property<PropertyValue>,
+  time: number,
+) => PropertyValue | undefined;
+
+let expressionEvaluator: ExpressionEvaluator | null = null;
+
+export function registerExpressionEvaluator(fn: ExpressionEvaluator): void {
+  expressionEvaluator = fn;
+}
+
+/** The property's value at a comp time, honouring expressions and keyframes. */
+export function valueAtTime<T extends PropertyValue>(prop: Property<T>, time: number): T;
+export function valueAtTime(prop: AnyProperty, time: number): PropertyValue;
+export function valueAtTime(prop: Property<PropertyValue>, time: number): PropertyValue {
+  if (prop.expression && expressionEvaluator) {
+    const result = expressionEvaluator(prop, time);
+    if (result !== undefined) return result;
+  }
+  return rawValueAtTime(prop, time);
 }
 
 /**

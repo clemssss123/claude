@@ -2,15 +2,15 @@ import { IDENTITY, multiply, rotation, scaling, translation } from './matrix';
 import type { Matrix } from './matrix';
 import { ellipsePath, rectPath } from './path';
 import type { BezierPath } from './path';
-import { createProperty, valueAtTime } from './property';
+import { addKeyframe, createProperty, valueAtTime } from './property';
 import { createFill, createRectShape, createShapeGroup, createStroke } from './shapes';
 import { positionAtTime } from './spatial';
 import { layoutTextLayer } from './text';
 import { uid } from './uid';
 import type {
   AdjustmentLayer, AnyProperty, Composition, Id, Layer, LayerBase, Mask, NullLayer,
-  Property, PropertyValue, RGBA, ShapeItem, ShapeLayer, ShapeTransform, SolidLayer,
-  TextLayer, TransformGroup, Vec2,
+  PrecompLayer, Property, PropertyValue, RGBA, ShapeItem, ShapeLayer, ShapeTransform,
+  SolidLayer, TextLayer, TransformGroup, Vec2,
 } from './types';
 import { MASK_COLORS } from './types';
 
@@ -79,6 +79,7 @@ function baseLayer(init: LayerInit): Omit<LayerBase, 'type'> {
     masks: [],
     effects: [],
     trackMatte: 'none',
+    timeRemap: null,
   };
 }
 
@@ -125,6 +126,42 @@ export function createTextLayer(comp: Composition, source: string): TextLayer {
   // Text is anchored at its own origin rather than a source rectangle.
   layer.transform.anchorPoint.value = [0, 0];
   return layer;
+}
+
+export function createPrecompLayer(
+  comp: Composition,
+  source: Composition,
+): PrecompLayer {
+  return {
+    ...baseLayer({
+      name: source.name, width: source.width, height: source.height, comp,
+    }),
+    type: 'precomp',
+    compId: source.id,
+    collapseTransformations: false,
+  };
+}
+
+/**
+ * Turn on Time Remapping: two keyframes that map the layer's own span onto
+ * the source's, which is a no-op until you move them.
+ */
+export function enableTimeRemap(layer: Layer, sourceDuration: number): void {
+  if (layer.timeRemap) return;
+  const property = createProperty<number>('Time Remap', 'ADBE Time Remapping', 'number', 0, {
+    unit: ' s', speedPerPixel: 0.02,
+  });
+  property.animated = true;
+  const end = Math.max(0, Math.min(sourceDuration, layer.outPoint - layer.startTime));
+  addKeyframe(property, layer.inPoint, Math.max(0, layer.inPoint - layer.startTime));
+  addKeyframe(property, layer.outPoint, end);
+  layer.timeRemap = property;
+}
+
+/** Source time for a layer, honouring Time Remapping when it is on. */
+export function sourceTimeAt(layer: Layer, compTime: number): number {
+  if (layer.timeRemap) return valueAtTime(layer.timeRemap, compTime);
+  return compTime - layer.startTime;
 }
 
 export function createShapeLayer(comp: Composition, name = 'Shape Layer 1'): ShapeLayer {
@@ -572,6 +609,10 @@ export function layerOutline(layer: Layer): OutlineNode[] {
       childPaths: propPaths(effects),
     });
     nodes.push(...effects);
+  }
+
+  if (layer.timeRemap) {
+    nodes.push(propNode('timeRemap', layer.timeRemap as AnyProperty, 1));
   }
 
   const transform = transformNodes(layer.transform, 'transform', 2);

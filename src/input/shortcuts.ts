@@ -250,8 +250,8 @@ export const SHORTCUTS: Shortcut[] = [
     label: 'Trim composition to work area',
     keys: ['ctrl+shift+x'],
     category: 'Layer timing',
-    status: 'planned',
-    phase: 5,
+    status: 'ready',
+    run: (s) => s.trimCompToWorkArea(),
   },
 
   // -- Property reveal -----------------------------------------------------
@@ -285,8 +285,8 @@ export const SHORTCUTS: Shortcut[] = [
     label: 'Reveal expressions',
     keys: ['ee'],
     category: 'Reveal',
-    status: 'planned',
-    phase: 5,
+    status: 'ready',
+    run: (s) => s.revealExpressions(),
   },
   {
     id: 'reveal.maskPath',
@@ -619,8 +619,18 @@ export const SHORTCUTS: Shortcut[] = [
     label: 'Pre-compose',
     keys: ['ctrl+shift+c'],
     category: 'Layer',
-    status: 'planned',
-    phase: 5,
+    status: 'ready',
+    run: (s) => s.precompose(),
+  },
+  {
+    id: 'layer.timeRemap',
+    label: 'Enable / disable Time Remapping',
+    keys: ['ctrl+alt+t'],
+    category: 'Layer',
+    status: 'ready',
+    run: (s) => {
+      for (const id of s.selectedLayerIds) s.toggleTimeRemap(id);
+    },
   },
   {
     id: 'layer.solidSettings',

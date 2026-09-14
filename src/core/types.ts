@@ -211,6 +211,11 @@ export interface LayerBase {
   masks: Mask[];
   effects: EffectInstance[];
   trackMatte: TrackMatteType;
+  /**
+   * Time Remapping: maps composition time to source time. Only layers with a
+   * source — precompositions — have anything to remap.
+   */
+  timeRemap: Property<number> | null;
 }
 
 export interface SolidLayer extends LayerBase {
@@ -387,8 +392,19 @@ export interface ShapeLayer extends LayerBase {
   contents: ShapeItem[];
 }
 
+/** A composition used as a layer inside another composition. */
+export interface PrecompLayer extends LayerBase {
+  type: 'precomp';
+  compId: Id;
+  /**
+   * Collapse Transformations. Stored so projects round-trip; the renderer
+   * still composites the nested composition as its own frame.
+   */
+  collapseTransformations: boolean;
+}
+
 export type Layer =
-  | SolidLayer | NullLayer | AdjustmentLayer | TextLayer | ShapeLayer;
+  | SolidLayer | NullLayer | AdjustmentLayer | TextLayer | ShapeLayer | PrecompLayer;
 
 export interface Marker {
   id: Id;

@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { findLayer } from '@/core/composition';
 import { valueAtTime } from '@/core/property';
 import { BLEND_MODES, LABEL_COLORS, MASK_MODES, TRACK_MATTE_TYPES } from '@/core/types';
@@ -43,6 +44,17 @@ export function LayerOutline({ comp, rows, time, selectedLayerIds, onScroll, scr
         }
         if (row.kind === 'group') {
           return <GroupRow key={row.key} row={row} />;
+        }
+        if (row.kind === 'expression') {
+          return (
+            <ExpressionRow
+              key={row.key}
+              layerId={row.layerId}
+              path={row.path}
+              property={row.property}
+              depth={row.depth}
+            />
+          );
         }
         return (
           <PropertyRow
@@ -98,7 +110,17 @@ function LayerRow({ comp, layerId, index, selected }: {
       >
         {expanded ? '▾' : '▸'}
       </button>
-      <span className="name" title={layer.name}>{layer.name}</span>
+      <span
+        className="name"
+        title={layer.type === 'precomp'
+          ? `${layer.name} — double-click to open this composition`
+          : layer.name}
+        onDoubleClick={() => {
+          if (layer.type === 'precomp') useEditor.getState().openPrecompSource(layerId);
+        }}
+      >
+        {layer.type === 'precomp' ? '▣ ' : ''}{layer.name}
+      </span>
       <div className="switches">
         {toggle('shy')}
         {toggle('motionBlur')}
@@ -335,6 +357,57 @@ function SelectorOptions({ layerId, parts }: { layerId: Id; parts: string[] }) {
   );
 }
 
+/** The editable expression attached to a property, with its error if any. */
+function ExpressionRow({ layerId, path, property, depth }: {
+  layerId: Id; path: string; property: AnyProperty; depth: number;
+}) {
+  const [draft, setDraft] = useState(property.expression ?? '');
+  const [focused, setFocused] = useState(false);
+  const error = useEditor((s) => s.expressionErrors[property.id]);
+
+  // While the field is not focused it follows the document, so undo shows.
+  useEffect(() => {
+    if (!focused) setDraft(property.expression ?? '');
+  }, [property.expression, focused]);
+
+  return (
+    <div
+      className={`prop-row expression-row ${error ? 'has-error' : ''}`}
+      style={{ height: ROW_HEIGHT, paddingLeft: 8 + depth * INDENT }}
+    >
+      <span className="expr-mark" title={error ?? 'Expression'}>=</span>
+      <input
+        className="expr-input"
+        value={draft}
+        spellCheck={false}
+        placeholder="value"
+        title={error ?? 'Expression'}
+        onChange={(e) => setDraft(e.target.value)}
+        onFocus={() => setFocused(true)}
+        onBlur={() => {
+          setFocused(false);
+          useEditor.getState().setExpression(layerId, path, draft);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+          if (e.key === 'Escape') {
+            setDraft(property.expression ?? '');
+            (e.target as HTMLInputElement).blur();
+          }
+          e.stopPropagation();
+        }}
+      />
+      <button
+        className="icon"
+        title="Remove expression"
+        onClick={() => useEditor.getState().setExpression(layerId, path, null)}
+      >
+        ✕
+      </button>
+    </div>
+  );
+}
+
 /** "transform.position.dimensions.0" -> "transform.position", else null. */
 function parentVectorPath(path: string): string | null {
   const match = /^(.*)\.dimensions\.\d+$/.exec(path);
@@ -379,11 +452,14 @@ function PropertyRow({ layerId, path, property, depth, time }: {
       style={{ height: ROW_HEIGHT, paddingLeft: 8 + depth * INDENT }}
     >
       <button
-        className={`stopwatch ${property.animated ? 'on' : ''}`}
-        title="Toggle animation (stopwatch)"
-        onClick={() => store.toggleStopwatch(layerId, path)}
+        className={`stopwatch ${property.animated ? 'on' : ''} ${property.expression ? 'expr' : ''}`}
+        title="Stopwatch — Alt+click to add an expression"
+        onClick={(e) => {
+          if (e.altKey) useEditor.getState().toggleExpression(layerId, path);
+          else store.toggleStopwatch(layerId, path);
+        }}
       >
-        {property.animated ? '⏱' : '○'}
+        {property.expression ? '=' : property.animated ? '⏱' : '○'}
       </button>
       <span
         className="prop-name"

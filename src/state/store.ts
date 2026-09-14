@@ -4,8 +4,9 @@ import {
   removeLayer, uniqueLayerName,
 } from '@/core/composition';
 import {
-  allProperties, createAdjustmentLayer, createMask, createNullLayer, createShapeLayer,
-  createSolidLayer, createTextLayer, getProperty, layerBounds, wouldCreateCycle,
+  allProperties, createAdjustmentLayer, createMask, createNullLayer, createPrecompLayer,
+  createShapeLayer, createSolidLayer, createTextLayer, enableTimeRemap, getProperty,
+  layerBounds, wouldCreateCycle,
 } from '@/core/layer';
 import {
   createEllipseShape, createFill, createOffsetPaths, createPathShape, createRectShape,
@@ -23,6 +24,7 @@ import {
 } from '@/core/property';
 import { ellipsePath, isBezierPath, rectPath } from '@/core/path';
 import type { BezierPath } from '@/core/path';
+import { expressionErrors as collectExpressionErrors, setExpressionContext } from '@/core/expressions';
 import { activeComposition, createStarterProject } from '@/core/project';
 import { spatialInTangent, spatialOutTangent } from '@/core/spatial';
 import { snapToFrame } from '@/core/time';
@@ -119,6 +121,8 @@ export interface EditorState {
   timeDisplay: 'timecode' | 'frames';
   graphEditor: boolean;
   statusMessage: string | null;
+  /** Expression errors from the last rendered frame, keyed by property id. */
+  expressionErrors: Record<Id, string>;
   /** Name of the open modal dialog, if any. */
   dialog:
     | 'compSettings' | 'shortcuts' | 'about' | 'velocity' | 'interpolation'
@@ -180,6 +184,16 @@ export interface EditorState {
   addShapeItem: (layerId: Id, kind: 'fill' | 'stroke' | 'trim' | 'repeater' | 'offset') => void;
   removeShapeItem: (layerId: Id, path: string) => void;
 
+  // -- precomps and time -----------------------------------------------------
+  precompose: (name?: string) => void;
+  toggleTimeRemap: (layerId: Id) => void;
+  openPrecompSource: (layerId: Id) => void;
+  trimCompToWorkArea: () => void;
+
+  // -- expressions ---------------------------------------------------------
+  setExpression: (layerId: Id, path: string, source: string | null) => void;
+  toggleExpression: (layerId: Id, path: string) => void;
+
   // -- effects -------------------------------------------------------------
   addEffect: (layerId: Id, matchName: string) => void;
   removeEffect: (layerId: Id, index: number) => void;
@@ -231,6 +245,7 @@ export interface EditorState {
   revealProperties: (revealKey: string, additive: boolean) => void;
   revealAnimated: () => void;
   revealModified: () => void;
+  revealExpressions: () => void;
   revealAll: (layerId: Id) => void;
   toggleExpanded: (id: Id) => void;
   setTool: (tool: Tool) => void;
@@ -239,6 +254,7 @@ export interface EditorState {
   toggleGraphEditor: () => void;
   setStatus: (message: string | null) => void;
   openDialog: (dialog: EditorState['dialog']) => void;
+  refreshExpressionErrors: () => void;
 
   // -- composition ---------------------------------------------------------
   newComposition: () => void;
@@ -253,8 +269,18 @@ function currentComp(project: Project): Composition | undefined {
   return activeComposition(project);
 }
 
+/**
+ * Expressions resolve other layers by name and index, so the engine needs to
+ * be looking at the same document the editor is.
+ */
+function syncExpressions(project: Project): Project {
+  const comp = activeComposition(project);
+  if (comp) setExpressionContext(project, comp);
+  return project;
+}
+
 export const useEditor = create<EditorState>()((set, get) => ({
-  project: createStarterProject(),
+  project: syncExpressions(createStarterProject()),
   past: [],
   future: [],
   lastCoalesceKey: null,
@@ -292,6 +318,7 @@ export const useEditor = create<EditorState>()((set, get) => ({
   timeDisplay: 'timecode',
   graphEditor: false,
   statusMessage: null,
+  expressionErrors: {},
   dialog: null,
 
   mutate: (label, recipe, options = {}) => {
@@ -310,7 +337,7 @@ export const useEditor = create<EditorState>()((set, get) => ({
       : [...state.past, { label, project: state.project }].slice(-HISTORY_LIMIT);
 
     set({
-      project: next,
+      project: syncExpressions(next),
       past,
       future: [],
       lastCoalesceKey: options.coalesceKey ?? null,
@@ -330,7 +357,7 @@ export const useEditor = create<EditorState>()((set, get) => ({
     const entry = past[past.length - 1];
     if (!entry) return;
     set({
-      project: entry.project,
+      project: syncExpressions(entry.project),
       past: past.slice(0, -1),
       future: [...future, { label: entry.label, project }],
       lastCoalesceKey: null,
@@ -343,7 +370,7 @@ export const useEditor = create<EditorState>()((set, get) => ({
     const entry = future[future.length - 1];
     if (!entry) return;
     set({
-      project: entry.project,
+      project: syncExpressions(entry.project),
       future: future.slice(0, -1),
       past: [...past, { label: entry.label, project }],
       lastCoalesceKey: null,
@@ -748,6 +775,116 @@ export const useEditor = create<EditorState>()((set, get) => ({
       if (Array.isArray(parent)) parent.splice(index, 1);
     });
     set({ selectedProperties: [], selectedKeyframes: [] });
+  },
+
+  precompose: (name) => {
+    const state = get();
+    const comp = currentComp(state.project);
+    if (!comp || state.selectedLayerIds.length === 0) {
+      set({ statusMessage: 'Select layers to pre-compose.' });
+      return;
+    }
+
+    let newLayerId: Id | null = null;
+    get().mutate('Pre-compose', (project) => {
+      const source = activeComposition(project);
+      if (!source) return;
+
+      const moving = source.layers.filter((l) => state.selectedLayerIds.includes(l.id));
+      if (moving.length === 0) return;
+      const topIndex = Math.min(...moving.map((l) => source.layers.indexOf(l)));
+
+      const nested = createComposition({
+        name: name ?? `${source.name} Comp ${project.compositions.length}`,
+        width: source.width,
+        height: source.height,
+        frameRate: source.frameRate,
+        duration: source.duration,
+        bgColor: source.bgColor,
+      });
+      nested.layers = moving.map((l) => structuredClone(l));
+      // Parenting to a layer left behind cannot survive the move.
+      const movedIds = new Set(nested.layers.map((l) => l.id));
+      for (const l of nested.layers) {
+        if (l.parentId && !movedIds.has(l.parentId)) l.parentId = null;
+      }
+      project.compositions.push(nested);
+
+      source.layers = source.layers.filter((l) => !state.selectedLayerIds.includes(l.id));
+      for (const l of source.layers) {
+        if (l.parentId && state.selectedLayerIds.includes(l.parentId)) l.parentId = null;
+      }
+
+      const layer = createPrecompLayer(source, nested);
+      layer.name = nested.name;
+      source.layers.splice(Math.min(topIndex, source.layers.length), 0, layer);
+      newLayerId = layer.id;
+    });
+
+    if (newLayerId) get().selectLayer(newLayerId);
+  },
+
+  toggleTimeRemap: (layerId) => {
+    const state = get();
+    const comp = currentComp(state.project);
+    const layer = comp && findLayer(comp, layerId);
+    if (!layer) return;
+    if (layer.type !== 'precomp') {
+      set({ statusMessage: 'Time Remapping applies to pre-composition layers.' });
+      return;
+    }
+    const source = state.project.compositions.find((c) => c.id === layer.compId);
+    get().mutateComp(layer.timeRemap ? 'Disable Time Remapping' : 'Enable Time Remapping', (c) => {
+      const target = findLayer(c, layerId);
+      if (!target) return;
+      if (target.timeRemap) target.timeRemap = null;
+      else enableTimeRemap(target, source?.duration ?? c.duration);
+    });
+    get().revealAll(layerId);
+  },
+
+  openPrecompSource: (layerId) => {
+    const state = get();
+    const comp = currentComp(state.project);
+    const layer = comp && findLayer(comp, layerId);
+    if (layer?.type !== 'precomp') return;
+    get().setActiveComp(layer.compId);
+  },
+
+  trimCompToWorkArea: () => {
+    get().mutateComp('Trim Composition to Work Area', (c) => {
+      const start = c.workAreaStart;
+      const end = c.workAreaEnd;
+      c.duration = Math.max(1 / c.frameRate, end - start);
+      for (const layer of c.layers) {
+        layer.inPoint -= start;
+        layer.outPoint -= start;
+        layer.startTime -= start;
+      }
+      c.workAreaStart = 0;
+      c.workAreaEnd = c.duration;
+      for (const marker of c.markers) marker.time -= start;
+    });
+    set({ time: 0 });
+  },
+
+  setExpression: (layerId, path, source) => {
+    get().mutateComp('Set Expression', (c) => {
+      const layer = findLayer(c, layerId);
+      const prop = layer && getProperty(layer, path);
+      if (prop) prop.expression = source && source.trim() !== '' ? source : null;
+    }, { coalesceKey: `expr:${layerId}:${path}` });
+  },
+
+  toggleExpression: (layerId, path) => {
+    const comp = currentComp(get().project);
+    const layer = comp && findLayer(comp, layerId);
+    const prop = layer && getProperty(layer, path);
+    if (!prop) return;
+    // Alt-clicking the stopwatch starts an expression seeded with the
+    // property's own value, which is what After Effects writes in.
+    get().setExpression(layerId, path, prop.expression ? null : 'value');
+    get().revealAll(layerId);
   },
 
   addEffect: (layerId, matchName) => {
@@ -1330,6 +1467,24 @@ export const useEditor = create<EditorState>()((set, get) => ({
     set({ revealed, expanded });
   },
 
+  revealExpressions: () => {
+    const state = get();
+    const comp = currentComp(state.project);
+    if (!comp) return;
+    const revealed = { ...state.revealed };
+    const expanded = { ...state.expanded };
+    for (const id of state.selectedLayerIds) {
+      const layer = findLayer(comp, id);
+      if (!layer) continue;
+      const paths = allProperties(layer)
+        .filter((d) => d.property.expression)
+        .map((d) => d.path);
+      revealed[id] = sameSet(revealed[id] ?? [], paths) ? [] : paths;
+      expanded[id] = revealed[id].length > 0;
+    }
+    set({ revealed, expanded });
+  },
+
   revealAll: (layerId) => {
     const state = get();
     const comp = currentComp(state.project);
@@ -1363,6 +1518,15 @@ export const useEditor = create<EditorState>()((set, get) => ({
   toggleGraphEditor: () => set({ graphEditor: !get().graphEditor }),
   setStatus: (statusMessage) => set({ statusMessage }),
   openDialog: (dialog) => set({ dialog }),
+
+  refreshExpressionErrors: () => {
+    const next: Record<Id, string> = {};
+    for (const error of collectExpressionErrors()) next[error.propertyId] = error.message;
+    const current = get().expressionErrors;
+    const sameKeys = Object.keys(next).length === Object.keys(current).length
+      && Object.keys(next).every((key) => current[key] === next[key]);
+    if (!sameKeys) set({ expressionErrors: next });
+  },
 
   newComposition: () => {
     let id: Id | null = null;
@@ -1401,7 +1565,7 @@ export const useEditor = create<EditorState>()((set, get) => ({
   },
 
   loadProject: (project) => set({
-    project,
+    project: syncExpressions(project),
     past: [],
     future: [],
     time: 0,
