@@ -1,4 +1,4 @@
-import { isLayerActiveAt, renderableLayers, worldMatrix } from '@/core/layer';
+import { isLayerActiveAt, layerBounds, renderableLayers, worldMatrix } from '@/core/layer';
 import { applyToPoint, invert } from '@/core/matrix';
 import type { Composition, Layer, Vec2 } from '@/core/types';
 
@@ -32,16 +32,9 @@ export function pointInLayer(
   if (layer.type === 'null') {
     return Math.abs(local[0]) <= NULL_HALF_SIZE && Math.abs(local[1]) <= NULL_HALF_SIZE;
   }
-  if (layer.type === 'text') {
-    // Text is anchored at its own origin; use a generous box around it.
-    const half = layer.text.fontSize;
-    return (
-      local[0] >= -layer.width && local[0] <= layer.width
-      && local[1] >= -half && local[1] <= half
-    );
-  }
+  const b = layerBounds(layer);
   return (
-    local[0] >= 0 && local[0] <= layer.width
-    && local[1] >= 0 && local[1] <= layer.height
+    local[0] >= b.x && local[0] <= b.x + b.width
+    && local[1] >= b.y && local[1] <= b.y + b.height
   );
 }

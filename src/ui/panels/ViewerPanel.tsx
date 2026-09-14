@@ -1,14 +1,17 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { findLayer } from '@/core/composition';
-import { layerCorners, worldMatrix } from '@/core/layer';
+import { layerCorners, parentMatrix, worldMatrix } from '@/core/layer';
 import { applyToPoint, invert } from '@/core/matrix';
+import type { Matrix } from '@/core/matrix';
 import { activeComposition } from '@/core/project';
 import { valueAtTime } from '@/core/property';
 import { formatTimecode } from '@/core/time';
+import { motionPathPoints, spatialInTangent, spatialOutTangent } from '@/core/spatial';
 import { hitTestLayers } from '@/render/hit';
 import { renderComposition } from '@/render/renderer';
 import { useEditor } from '@/state/store';
-import type { Composition, Layer, Vec2 } from '@/core/types';
+import type { Composition, Keyframe, Layer, Vec2 } from '@/core/types';
+import type { KeyframeRef } from '@/state/store';
 
 type DragMode =
   | { kind: 'none' }
@@ -19,6 +22,10 @@ type DragMode =
   | {
       kind: 'scale'; layerId: string; handle: number; startScale: Vec2;
       startLocal: Vec2; anchor: Vec2;
+    }
+  | {
+      kind: 'spatial'; ref: KeyframeRef; side: 'in' | 'out';
+      keyValue: Vec2; inverseParent: Matrix;
     };
 
 const HANDLE_SIZE = 7;
@@ -152,6 +159,19 @@ export function ViewerPanel() {
       return;
     }
 
+    // Motion-path handles sit on top of everything else on a selected layer.
+    const spatialHit = findSpatialHandle(comp, selectedLayerIds, point, time, zoom);
+    if (spatialHit && tool === 'selection') {
+      drag.current = {
+        kind: 'spatial',
+        ref: spatialHit.ref,
+        side: spatialHit.side,
+        keyValue: spatialHit.keyValue,
+        inverseParent: invert(spatialHit.parent),
+      };
+      return;
+    }
+
     // A scale handle on an already-selected layer wins over a fresh hit test.
     const handleHit = findHandle(comp, selectedLayerIds, point, time, zoom);
     if (handleHit && tool === 'selection') {
@@ -272,6 +292,16 @@ export function ViewerPanel() {
           mode.layerId, 'transform.position',
           [mode.startPos[0] + worldDelta[0], mode.startPos[1] + worldDelta[1]],
           `viewer:anchor:${mode.layerId}`,
+        );
+        break;
+      }
+
+      case 'spatial': {
+        const local = applyToPoint(mode.inverseParent, point);
+        state.setSpatialTangent(
+          mode.ref, mode.side,
+          [local[0] - mode.keyValue[0], local[1] - mode.keyValue[1]],
+          `viewer:spatial:${mode.ref.kfId}:${mode.side}`,
         );
         break;
       }
@@ -439,35 +469,44 @@ function drawSelection(
   ctx.closePath();
   ctx.stroke();
 
-  // Motion path for an animated position, sampled per keyframe interval.
+  // Motion path: the spatial curve, drawn in the layer's parent space.
   const position = layer.transform.position;
-  if (position.animated && position.keyframes.length > 1) {
-    const first = position.keyframes[0].time;
-    const last = position.keyframes[position.keyframes.length - 1].time;
-    const steps = Math.min(240, Math.max(24, Math.round((last - first) * comp.frameRate)));
+  if (position.animated && position.keyframes.length > 1 && !position.separated) {
+    const parent = parentMatrix(comp, layer, time);
+    const toPath = (p: Vec2) => toScreen(applyToPoint(parent, p));
+    const kfs = position.keyframes as Keyframe<Vec2>[];
+
     ctx.strokeStyle = 'rgba(255,255,255,0.55)';
     ctx.setLineDash([]);
     ctx.beginPath();
-    for (let i = 0; i <= steps; i += 1) {
-      const t = first + ((last - first) * i) / steps;
-      const world = applyToPoint(
-        worldMatrix(comp, layer, t),
-        valueAtTime(layer.transform.anchorPoint, t),
-      );
-      const [x, y] = toScreen(world);
-      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-    }
+    motionPathPoints(position as typeof position & { keyframes: Keyframe<Vec2>[] })
+      .forEach((point, i) => {
+        const [x, y] = toPath(point);
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      });
     ctx.stroke();
 
-    ctx.fillStyle = '#ffffff';
-    for (const kf of position.keyframes) {
-      const world = applyToPoint(
-        worldMatrix(comp, layer, kf.time),
-        valueAtTime(layer.transform.anchorPoint, kf.time),
-      );
-      const [x, y] = toScreen(world);
-      ctx.fillRect(x - 2, y - 2, 4, 4);
-    }
+    kfs.forEach((kf, index) => {
+      const [x, y] = toPath(kf.value);
+      for (const side of ['in', 'out'] as const) {
+        const tangent = side === 'out'
+          ? spatialOutTangent(kfs, index)
+          : spatialInTangent(kfs, index);
+        if (Math.abs(tangent[0]) < 1e-6 && Math.abs(tangent[1]) < 1e-6) continue;
+        const [hx, hy] = toPath([kf.value[0] + tangent[0], kf.value[1] + tangent[1]]);
+        ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.lineTo(hx, hy);
+        ctx.stroke();
+        ctx.fillStyle = '#9fd0ff';
+        ctx.beginPath();
+        ctx.arc(hx, hy, 3.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(x - 2.5, y - 2.5, 5, 5);
+    });
   }
 
   // Scale handles.
@@ -505,6 +544,48 @@ function handlePoints(corners: Vec2[]): Vec2[] {
     mid(corners[2], corners[3]),
     mid(corners[3], corners[0]),
   ];
+}
+
+/** Motion-path tangent handle under a point, if any. */
+function findSpatialHandle(
+  comp: Composition,
+  selectedLayerIds: string[],
+  point: Vec2,
+  time: number,
+  zoom: number,
+): {
+  ref: KeyframeRef; side: 'in' | 'out'; keyValue: Vec2; parent: Matrix;
+} | undefined {
+  const tolerance = 7 / zoom;
+  for (const id of selectedLayerIds) {
+    const layer = findLayer(comp, id);
+    const position = layer?.transform.position;
+    if (!layer || !position?.animated || position.separated) continue;
+
+    const parent = parentMatrix(comp, layer, time);
+    const kfs = position.keyframes as Keyframe<Vec2>[];
+    for (let index = 0; index < kfs.length; index += 1) {
+      const kf = kfs[index];
+      for (const side of ['in', 'out'] as const) {
+        const tangent = side === 'out'
+          ? spatialOutTangent(kfs, index)
+          : spatialInTangent(kfs, index);
+        if (Math.abs(tangent[0]) < 1e-6 && Math.abs(tangent[1]) < 1e-6) continue;
+        const world = applyToPoint(parent, [
+          kf.value[0] + tangent[0], kf.value[1] + tangent[1],
+        ]);
+        if (Math.hypot(world[0] - point[0], world[1] - point[1]) <= tolerance) {
+          return {
+            ref: { layerId: layer.id, path: 'transform.position', kfId: kf.id },
+            side,
+            keyValue: kf.value,
+            parent,
+          };
+        }
+      }
+    }
+  }
+  return undefined;
 }
 
 function findHandle(

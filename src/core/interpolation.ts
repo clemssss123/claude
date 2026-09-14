@@ -1,5 +1,7 @@
 import { cubicBezierEase } from './bezier';
-import type { Ease, InterpolationType, Keyframe, PropertyValue, RGBA, Vec2 } from './types';
+import type {
+  Ease, InterpolationType, Keyframe, PropertyValue, RGBA, TangentMode, Vec2,
+} from './types';
 
 /** After Effects' default handle influence for a fresh bezier handle. */
 export const DEFAULT_INFLUENCE = 16.666666;
@@ -8,6 +10,10 @@ export const EASY_EASE_INFLUENCE = 33.333333;
 
 export function defaultEase(): Ease {
   return { influence: DEFAULT_INFLUENCE, speed: 0 };
+}
+
+export function clampInfluencePercent(value: number): number {
+  return Math.min(100, Math.max(0.1, value));
 }
 
 export function isVec2(v: PropertyValue): v is Vec2 {
@@ -81,6 +87,23 @@ export function segmentControlPoints(
   return [x1, y1, x2, y2];
 }
 
+/**
+ * Eased progress through a segment, 0..1 (or beyond, when handles overshoot).
+ * Separated from value interpolation because a motion path needs the progress
+ * on its own to walk along a curve in space.
+ */
+export function segmentProgress(a: Keyframe, b: Keyframe, time: number): number {
+  if (a.outType === 'hold') return 0;
+  const duration = b.time - a.time;
+  if (duration <= 0) return 1;
+
+  const x = Math.min(1, Math.max(0, (time - a.time) / duration));
+  const [x1, y1, x2, y2] = segmentControlPoints(
+    a.outType, a.easeOut, b.inType, b.easeIn, duration, valueDelta(a.value, b.value),
+  );
+  return cubicBezierEase(x, x1, y1, x2, y2);
+}
+
 /** Interpolate between two adjacent keyframes at an absolute comp time. */
 export function interpolateKeyframes<T extends PropertyValue>(
   a: Keyframe<T>,
@@ -88,17 +111,8 @@ export function interpolateKeyframes<T extends PropertyValue>(
   time: number,
 ): T {
   if (a.outType === 'hold') return a.value;
-
-  const duration = b.time - a.time;
-  if (duration <= 0) return b.value;
-
-  const x = Math.min(1, Math.max(0, (time - a.time) / duration));
-  const delta = valueDelta(a.value, b.value);
-  const [x1, y1, x2, y2] = segmentControlPoints(
-    a.outType, a.easeOut, b.inType, b.easeIn, duration, delta,
-  );
-  const progress = cubicBezierEase(x, x1, y1, x2, y2);
-  return lerpValue(a.value, b.value, progress);
+  if (b.time - a.time <= 0) return b.value;
+  return lerpValue(a.value, b.value, segmentProgress(a, b, time));
 }
 
 /**
@@ -134,6 +148,98 @@ export function upperBound<T extends PropertyValue>(
   return lo;
 }
 
+/**
+ * Convert a standard CSS-style cubic-bezier easing, (0,0)->(1,1) with control
+ * points (x1,y1) and (x2,y2), into the influence/speed handles a segment needs
+ * to reproduce it. This is what makes an easing preset library possible: a
+ * preset is just a curve, and this is how it lands on two keyframes.
+ */
+export function easeFromCubicBezier(
+  x1: number, y1: number, x2: number, y2: number,
+  duration: number,
+  delta: number,
+): { easeOut: Ease; easeIn: Ease } {
+  const influenceOut = clampInfluencePercent(x1 * 100);
+  const influenceIn = clampInfluencePercent((1 - x2) * 100);
+
+  // Normalized slope of each handle, converted back into value units/second.
+  const scale = duration === 0 ? 0 : delta / duration;
+  const slopeOut = x1 === 0 ? 0 : y1 / x1;
+  const slopeIn = x2 === 1 ? 0 : (1 - y2) / (1 - x2);
+
+  return {
+    easeOut: { influence: influenceOut, speed: slopeOut * scale },
+    easeIn: { influence: influenceIn, speed: slopeIn * scale },
+  };
+}
+
+/** The inverse of {@link easeFromCubicBezier}, for display and editing. */
+export function cubicBezierFromSegment(
+  a: Keyframe,
+  b: Keyframe,
+): [number, number, number, number] {
+  const duration = b.time - a.time;
+  const delta = valueDelta(a.value, b.value);
+  return segmentControlPoints(a.outType, a.easeOut, b.inType, b.easeIn, duration, delta);
+}
+
+/**
+ * Auto Bezier tangent speed: the slope of the line through the neighbouring
+ * keyframes, which is what makes the curve pass smoothly through this one.
+ * End keyframes flatten to zero, as they do in After Effects.
+ */
+export function autoTangentSpeed(
+  previous: Keyframe | undefined,
+  current: Keyframe,
+  next: Keyframe | undefined,
+): number {
+  if (!previous || !next) return 0;
+  const span = next.time - previous.time;
+  if (span <= 0) return 0;
+  const rise = signedDelta(previous.value, next.value, current.value);
+  return rise / span;
+}
+
+/**
+ * Signed change from `from` to `to`. Vectors have no sign, so their magnitude
+ * is signed by which side of `pivot` the motion is heading.
+ */
+function signedDelta(from: PropertyValue, to: PropertyValue, pivot: PropertyValue): number {
+  if (typeof from === 'number' && typeof to === 'number') return to - from;
+  const magnitude = valueDelta(from, to);
+  const toPivot = valueDelta(from, pivot);
+  return toPivot >= 0 ? magnitude : -magnitude;
+}
+
+/**
+ * Re-apply a keyframe's tangent mode after an edit. Auto keyframes recompute
+ * both handles; continuous keyframes mirror the speed that was just changed.
+ */
+export function enforceTangentMode(
+  keyframes: Keyframe[],
+  index: number,
+  changedSide: 'in' | 'out' | 'both' = 'both',
+): void {
+  const kf = keyframes[index];
+  if (!kf) return;
+  const mode: TangentMode = kf.tangentMode ?? 'independent';
+  if (mode === 'independent') return;
+
+  if (mode === 'auto') {
+    const speed = autoTangentSpeed(keyframes[index - 1], kf, keyframes[index + 1]);
+    kf.easeIn = { influence: kf.easeIn.influence, speed };
+    kf.easeOut = { influence: kf.easeOut.influence, speed };
+    if (kf.inType !== 'hold') kf.inType = 'bezier';
+    if (kf.outType !== 'hold') kf.outType = 'bezier';
+    return;
+  }
+
+  // Continuous: the two handles stay collinear, so they share one speed.
+  if (changedSide === 'out') kf.easeIn = { ...kf.easeIn, speed: kf.easeOut.speed };
+  else if (changedSide === 'in') kf.easeOut = { ...kf.easeOut, speed: kf.easeIn.speed };
+  else kf.easeIn = { ...kf.easeIn, speed: kf.easeOut.speed };
+}
+
 /** Apply Easy Ease to one or both sides of a keyframe, in place. */
 export function applyEasyEase(
   kf: Keyframe,
@@ -147,4 +253,6 @@ export function applyEasyEase(
     kf.outType = 'bezier';
     kf.easeOut = { influence: EASY_EASE_INFLUENCE, speed: 0 };
   }
+  // Easy Ease flattens both handles, which is a continuous tangent.
+  if (side === 'both' && kf.tangentMode === 'auto') kf.tangentMode = 'continuous';
 }

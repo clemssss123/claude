@@ -5,6 +5,8 @@ import { useEditor } from '@/state/store';
 import { usePlayback } from '@/state/usePlayback';
 import { Splitter } from '@/ui/components/Splitter';
 import { CompSettingsDialog } from '@/ui/dialogs/CompSettingsDialog';
+import { KeyframeInterpolationDialog } from '@/ui/dialogs/KeyframeInterpolationDialog';
+import { KeyframeVelocityDialog } from '@/ui/dialogs/KeyframeVelocityDialog';
 import { ShortcutsDialog } from '@/ui/dialogs/ShortcutsDialog';
 import { EffectControlsPanel } from '@/ui/panels/EffectControlsPanel';
 import { PreviewPanel } from '@/ui/panels/PreviewPanel';
@@ -19,7 +21,7 @@ export function App() {
 
   const [leftWidth, setLeftWidth] = useState(240);
   const [rightWidth, setRightWidth] = useState(280);
-  const [timelineHeight, setTimelineHeight] = useState(340);
+  const [timelineHeight, setTimelineHeight] = useState(390);
 
   const dialog = useEditor((s) => s.dialog);
   const status = useEditor((s) => s.statusMessage);
@@ -97,11 +99,15 @@ export function App() {
       <div className="status-bar">
         <span>{status ?? 'Ready'}</span>
         <span style={{ flex: 1 }} />
-        <span>Phase 1 — document model, viewer, timeline, keyframes</span>
+        <span>Phase 2 — graph editor, easing library, full keyframe model</span>
       </div>
 
       {dialog === 'compSettings' && <CompSettingsDialog onClose={() => store.openDialog(null)} />}
       {dialog === 'shortcuts' && <ShortcutsDialog onClose={() => store.openDialog(null)} />}
+      {dialog === 'velocity' && <KeyframeVelocityDialog onClose={() => store.openDialog(null)} />}
+      {dialog === 'interpolation' && (
+        <KeyframeInterpolationDialog onClose={() => store.openDialog(null)} />
+      )}
     </div>
   );
 }

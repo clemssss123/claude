@@ -5,6 +5,8 @@ import { useEditor } from '@/state/store';
 import { ContextMenu } from '@/ui/components/ContextMenu';
 import { Splitter } from '@/ui/components/Splitter';
 import type { KeyframeRef } from '@/state/store';
+import { EasingPresetBar } from './EasingPresetBar';
+import { GraphEditor } from './GraphEditor';
 import { LayerOutline } from './LayerOutline';
 import { TrackArea } from './TrackArea';
 import type { TimelineView } from './TrackArea';
@@ -18,6 +20,7 @@ export function TimelinePanel() {
   const selectedKeyframes = useEditor((s) => s.selectedKeyframes);
   const timeDisplay = useEditor((s) => s.timeDisplay);
   const graphEditor = useEditor((s) => s.graphEditor);
+  const graphSettings = useEditor((s) => s.graph);
 
   const comp = activeComposition(project);
   const [outlineWidth, setOutlineWidth] = useState(400);
@@ -79,11 +82,8 @@ export function TimelinePanel() {
         <span style={{ flex: 1 }} />
         <button
           className={graphEditor ? 'icon active' : 'icon'}
-          title="Graph Editor (Shift+F3) — arrives in phase 2"
-          onClick={() => {
-            store.toggleGraphEditor();
-            store.setStatus('Graph Editor lands in phase 2.');
-          }}
+          title="Graph Editor (Shift+F3)"
+          onClick={() => store.toggleGraphEditor()}
         >
           Graph Editor
         </button>
@@ -122,18 +122,25 @@ export function TimelinePanel() {
           onDrag={(dx) => setOutlineWidth((w) => Math.min(760, Math.max(220, w + dx)))}
         />
 
-        <TrackArea
-          comp={comp}
-          rows={rows}
-          time={time}
-          view={view}
-          scrollTop={scrollTop}
-          selectedLayerIds={selectedLayerIds}
-          selectedKeyframes={selectedKeyframes}
-          onViewChange={setView}
-          onScroll={setScrollTop}
-          onKeyframeContextMenu={(x, y, ref) => setMenu({ x, y, ref })}
-        />
+        {graphEditor ? (
+          <div className="graph-column">
+            {graphSettings.showPresets && <EasingPresetBar />}
+            <GraphEditor comp={comp} time={time} view={view} onViewChange={setView} />
+          </div>
+        ) : (
+          <TrackArea
+            comp={comp}
+            rows={rows}
+            time={time}
+            view={view}
+            scrollTop={scrollTop}
+            selectedLayerIds={selectedLayerIds}
+            selectedKeyframes={selectedKeyframes}
+            onViewChange={setView}
+            onScroll={setScrollTop}
+            onKeyframeContextMenu={(x, y, ref) => setMenu({ x, y, ref })}
+          />
+        )}
       </div>
 
       {menu && (
@@ -146,10 +153,20 @@ export function TimelinePanel() {
             { label: 'Easy Ease In  (Shift+F9)', onSelect: () => store.applyEasyEaseToSelection('in') },
             { label: 'Easy Ease Out  (Ctrl+Shift+F9)', onSelect: () => store.applyEasyEaseToSelection('out') },
             { label: '', divider: true },
+            { label: 'Keyframe Interpolation…  (Ctrl+Alt+K)', onSelect: () => store.openDialog('interpolation') },
+            { label: 'Keyframe Velocity…  (Ctrl+Shift+K)', onSelect: () => store.openDialog('velocity') },
+            { label: '', divider: true },
             { label: 'Linear', onSelect: () => store.setSelectedInterpolation('linear') },
             { label: 'Bezier', onSelect: () => store.setSelectedInterpolation('bezier') },
             { label: 'Hold', onSelect: () => store.setSelectedInterpolation('hold') },
+            { label: 'Auto Bezier', onSelect: () => store.setSelectedTangentMode('auto') },
+            { label: 'Continuous Bezier', onSelect: () => store.setSelectedTangentMode('continuous') },
             { label: '', divider: true },
+            { label: 'Rove Across Time', onSelect: () => store.setSelectedRoving(true) },
+            { label: 'Stop Roving', onSelect: () => store.setSelectedRoving(false) },
+            { label: '', divider: true },
+            { label: 'Copy Keyframes  (Ctrl+C)', onSelect: () => store.copyKeyframes() },
+            { label: 'Paste Keyframes  (Ctrl+V)', onSelect: () => store.pasteKeyframes() },
             { label: 'Delete Keyframes', onSelect: () => store.deleteSelectedKeyframes() },
           ]}
         />

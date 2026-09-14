@@ -7,15 +7,20 @@ import {
   allProperties, createAdjustmentLayer, createNullLayer, createSolidLayer,
   createTextLayer, getProperty, transformProperties, wouldCreateCycle,
 } from '@/core/layer';
-import { applyEasyEase } from '@/core/interpolation';
+import { applyBezierToSegment, bakeIntoSegment, loadCustomPresets, saveCustomPresets } from '@/core/easings';
+import type { EasingPreset } from '@/core/easings';
+import { applyEasyEase, enforceTangentMode } from '@/core/interpolation';
 import {
-  addKeyframe, findKeyframeAt, hexToRgba, moveKeyframe, removeKeyframe,
-  setAnimated, setValueAtTime, valueAtTime,
+  addKeyframe, applyRoving, clampToRange, findKeyframeAt, hexToRgba, mergeDimensions,
+  moveKeyframe, removeKeyframe, separateDimensions, setAnimated, setRoving,
+  setValueAtTime, valueAtTime,
 } from '@/core/property';
 import { activeComposition, createStarterProject } from '@/core/project';
+import { spatialInTangent, spatialOutTangent } from '@/core/spatial';
 import { snapToFrame } from '@/core/time';
 import type {
-  BlendMode, Composition, Id, InterpolationType, Layer, Project, PropertyValue, RGBA,
+  BlendMode, Composition, Ease, Id, InterpolationType, Keyframe, Layer, Project,
+  Property, PropertyValue, RGBA, SpatialType, TangentMode, Vec2,
 } from '@/core/types';
 
 /** How long two edits may be apart and still collapse into one undo step. */
@@ -29,6 +34,31 @@ export interface KeyframeRef {
   layerId: Id;
   path: string;
   kfId: Id;
+}
+
+export interface PropertyRef {
+  layerId: Id;
+  path: string;
+}
+
+export interface GraphSettings {
+  /** Value graph plots the property; speed graph plots its rate of change. */
+  mode: 'value' | 'speed';
+  /** Fit every curve to its own range so mixed units share the view. */
+  normalize: boolean;
+  /** Re-fit the vertical range whenever the curves change. */
+  autoZoom: boolean;
+  /** Snap dragged keyframes to whole frames. */
+  snap: boolean;
+  /** Show the easing preset bar. */
+  showPresets: boolean;
+}
+
+/** A copied keyframe, stored relative to the earliest one in the copy. */
+interface ClipboardEntry {
+  /** Seconds after the earliest keyframe in the copy. */
+  offset: number;
+  keyframe: Keyframe;
 }
 
 interface HistoryEntry {
@@ -66,9 +96,13 @@ export interface EditorState {
 
   selectedLayerIds: Id[];
   selectedKeyframes: KeyframeRef[];
+  selectedProperties: PropertyRef[];
   /** Property paths revealed per layer in the timeline. */
   revealed: Record<Id, string[]>;
   expanded: Record<Id, boolean>;
+  graph: GraphSettings;
+  customPresets: EasingPreset[];
+  clipboard: ClipboardEntry[];
 
   tool: Tool;
   viewer: ViewerState;
@@ -76,7 +110,7 @@ export interface EditorState {
   graphEditor: boolean;
   statusMessage: string | null;
   /** Name of the open modal dialog, if any. */
-  dialog: 'compSettings' | 'shortcuts' | 'about' | null;
+  dialog: 'compSettings' | 'shortcuts' | 'about' | 'velocity' | 'interpolation' | null;
 
   // -- document mutation ---------------------------------------------------
   mutate: (label: string, recipe: (project: Project) => void, options?: MutateOptions) => void;
@@ -99,6 +133,8 @@ export interface EditorState {
   selectAllLayers: () => void;
   setSelectedKeyframes: (refs: KeyframeRef[]) => void;
   toggleKeyframeSelection: (ref: KeyframeRef, additive: boolean) => void;
+  selectProperty: (ref: PropertyRef, additive: boolean) => void;
+  selectAllKeyframesOf: (ref: PropertyRef) => void;
 
   // -- layers --------------------------------------------------------------
   addSolid: (color?: RGBA) => void;
@@ -126,7 +162,22 @@ export interface EditorState {
   setKeyframeTime: (ref: KeyframeRef, time: number, coalesceKey?: string) => void;
   moveKeyframesTo: (entries: { ref: KeyframeRef; time: number }[], coalesceKey?: string) => void;
   applyEasyEaseToSelection: (side?: 'in' | 'out' | 'both') => void;
-  setSelectedInterpolation: (type: InterpolationType) => void;
+  setSelectedInterpolation: (type: InterpolationType, side?: 'in' | 'out' | 'both') => void;
+  setKeyframeEase: (ref: KeyframeRef, side: 'in' | 'out', ease: Ease) => void;
+  setKeyframeValue: (ref: KeyframeRef, value: PropertyValue, coalesceKey?: string) => void;
+  setSelectedTangentMode: (mode: TangentMode) => void;
+  setSelectedRoving: (roving: boolean) => void;
+  setSelectedSpatialType: (type: SpatialType) => void;
+  setSpatialTangent: (ref: KeyframeRef, side: 'in' | 'out', tangent: Vec2, coalesceKey?: string) => void;
+  toggleSeparateDimensions: (layerId: Id, path: string) => void;
+  copyKeyframes: () => void;
+  pasteKeyframes: () => void;
+  applyEasingPreset: (preset: EasingPreset) => void;
+  setGraph: (patch: Partial<GraphSettings>) => void;
+  saveCustomPreset: (preset: EasingPreset) => void;
+  removeCustomPreset: (id: string) => void;
+  renameCustomPreset: (id: string, name: string) => void;
+  moveCustomPreset: (id: string, delta: number) => void;
   goToNextKeyframe: () => void;
   goToPrevKeyframe: () => void;
 
@@ -167,8 +218,18 @@ export const useEditor = create<EditorState>()((set, get) => ({
 
   selectedLayerIds: [],
   selectedKeyframes: [],
+  selectedProperties: [],
   revealed: {},
   expanded: {},
+  graph: {
+    mode: 'value',
+    normalize: true,
+    autoZoom: true,
+    snap: true,
+    showPresets: true,
+  },
+  customPresets: loadCustomPresets(),
+  clipboard: [],
 
   tool: 'selection',
   viewer: {
@@ -288,6 +349,33 @@ export const useEditor = create<EditorState>()((set, get) => ({
   },
 
   setSelectedKeyframes: (refs) => set({ selectedKeyframes: refs }),
+
+  selectProperty: (ref, additive) => {
+    const { selectedProperties } = get();
+    const exists = selectedProperties.some(
+      (p) => p.layerId === ref.layerId && p.path === ref.path,
+    );
+    set({
+      selectedProperties: additive
+        ? (exists
+          ? selectedProperties.filter((p) => !(p.layerId === ref.layerId && p.path === ref.path))
+          : [...selectedProperties, ref])
+        : [ref],
+      selectedLayerIds: get().selectedLayerIds.includes(ref.layerId)
+        ? get().selectedLayerIds
+        : [ref.layerId],
+    });
+  },
+
+  selectAllKeyframesOf: (ref) => {
+    const comp = currentComp(get().project);
+    const prop = comp && propertyFor(comp, ref);
+    if (!prop) return;
+    set({
+      selectedKeyframes: prop.keyframes.map((kf) => ({ ...ref, kfId: kf.id })),
+      selectedProperties: [ref],
+    });
+  },
 
   toggleKeyframeSelection: (ref, additive) => {
     const { selectedKeyframes } = get();
@@ -557,20 +645,296 @@ export const useEditor = create<EditorState>()((set, get) => ({
     });
   },
 
-  setSelectedInterpolation: (type) => {
+  setSelectedInterpolation: (type, side = 'both') => {
     const refs = get().selectedKeyframes;
     if (refs.length === 0) return;
     get().mutateComp('Keyframe Interpolation', (c) => {
       for (const ref of refs) {
-        const layer = findLayer(c, ref.layerId);
-        const prop = layer && getProperty(layer, ref.path);
-        const kf = prop?.keyframes.find((k) => k.id === ref.kfId);
-        if (kf) {
-          kf.inType = type;
-          kf.outType = type;
+        const prop = propertyFor(c, ref);
+        const index = prop?.keyframes.findIndex((k) => k.id === ref.kfId) ?? -1;
+        if (!prop || index < 0) continue;
+        const kf = prop.keyframes[index];
+        if (side === 'in' || side === 'both') kf.inType = type;
+        if (side === 'out' || side === 'both') kf.outType = type;
+        enforceTangentMode(prop.keyframes, index, side);
+      }
+    });
+  },
+
+  setKeyframeEase: (ref, side, ease) => {
+    get().mutateComp('Keyframe Velocity', (c) => {
+      const prop = propertyFor(c, ref);
+      const index = prop?.keyframes.findIndex((k) => k.id === ref.kfId) ?? -1;
+      if (!prop || index < 0) return;
+      const kf = prop.keyframes[index];
+      if (side === 'in') {
+        kf.easeIn = ease;
+        if (kf.inType !== 'hold') kf.inType = 'bezier';
+      } else {
+        kf.easeOut = ease;
+        if (kf.outType !== 'hold') kf.outType = 'bezier';
+      }
+      enforceTangentMode(prop.keyframes, index, side);
+    }, { coalesceKey: `ease:${ref.kfId}:${side}` });
+  },
+
+  setKeyframeValue: (ref, value, coalesceKey) => {
+    get().mutateComp('Set Keyframe Value', (c) => {
+      const prop = propertyFor(c, ref);
+      const kf = prop?.keyframes.find((k) => k.id === ref.kfId);
+      if (!prop || !kf) return;
+      kf.value = clampToRange(prop, value);
+      if (prop.keyframes.some((k) => k.roving)) applyRoving(prop);
+    }, coalesceKey ? { coalesceKey } : undefined);
+  },
+
+  setSelectedTangentMode: (mode) => {
+    const refs = get().selectedKeyframes;
+    if (refs.length === 0) return;
+    get().mutateComp('Keyframe Tangents', (c) => {
+      for (const ref of refs) {
+        const prop = propertyFor(c, ref);
+        const index = prop?.keyframes.findIndex((k) => k.id === ref.kfId) ?? -1;
+        if (!prop || index < 0) continue;
+        prop.keyframes[index].tangentMode = mode;
+        enforceTangentMode(prop.keyframes, index, 'both');
+      }
+    });
+  },
+
+  setSelectedRoving: (roving) => {
+    const refs = get().selectedKeyframes;
+    if (refs.length === 0) return;
+    get().mutateComp('Rove Across Time', (c) => {
+      for (const ref of refs) {
+        const prop = propertyFor(c, ref);
+        if (prop) setRoving(prop, ref.kfId, roving);
+      }
+    });
+  },
+
+  setSelectedSpatialType: (type) => {
+    const refs = get().selectedKeyframes;
+    if (refs.length === 0) return;
+    get().mutateComp('Spatial Interpolation', (c) => {
+      for (const ref of refs) {
+        const prop = propertyFor(c, ref);
+        const index = prop?.keyframes.findIndex((k) => k.id === ref.kfId) ?? -1;
+        if (!prop?.spatial || index < 0) continue;
+        const kf = prop.keyframes[index] as Keyframe<Vec2>;
+        if (type === 'bezier' && kf.spatialType !== 'bezier') {
+          // Seed the manual handles from whatever the path is doing now.
+          kf.spatialOut = spatialOutTangent(prop.keyframes as Keyframe<Vec2>[], index);
+          kf.spatialIn = spatialInTangent(prop.keyframes as Keyframe<Vec2>[], index);
+        }
+        kf.spatialType = type;
+      }
+    });
+  },
+
+  setSpatialTangent: (ref, side, tangent, coalesceKey) => {
+    get().mutateComp('Edit Motion Path', (c) => {
+      const prop = propertyFor(c, ref);
+      const index = prop?.keyframes.findIndex((k) => k.id === ref.kfId) ?? -1;
+      if (!prop || index < 0) return;
+      const kfs = prop.keyframes as Keyframe<Vec2>[];
+      const kf = kfs[index];
+      const wasAuto = kf.spatialType !== 'bezier';
+      if (wasAuto) {
+        kf.spatialOut = spatialOutTangent(kfs, index);
+        kf.spatialIn = spatialInTangent(kfs, index);
+        kf.spatialType = 'bezier';
+      }
+      const opposite = side === 'out' ? 'spatialIn' : 'spatialOut';
+      const current = kf[opposite] ?? [0, 0];
+      const length = Math.hypot(current[0], current[1]);
+      const dragged = Math.hypot(tangent[0], tangent[1]);
+
+      if (side === 'out') kf.spatialOut = tangent;
+      else kf.spatialIn = tangent;
+
+      // Handles stay collinear, so the far side follows the direction of the
+      // one being dragged while keeping its own length.
+      if (dragged > 1e-6) {
+        const scale = length / dragged;
+        kf[opposite] = [-tangent[0] * scale, -tangent[1] * scale];
+      }
+    }, coalesceKey ? { coalesceKey } : undefined);
+  },
+
+  toggleSeparateDimensions: (layerId, path) => {
+    const comp = currentComp(get().project);
+    const layer = comp && findLayer(comp, layerId);
+    const prop = layer && getProperty(layer, path);
+    if (!prop) return;
+    const separating = !prop.separated;
+    get().mutateComp(separating ? 'Separate Dimensions' : 'Merge Dimensions', (c) => {
+      const target = propertyFor(c, { layerId, path });
+      if (!target) return;
+      if (separating) separateDimensions(target);
+      else mergeDimensions(target);
+    });
+    // Paths change shape either way, so old references would dangle.
+    set({ selectedKeyframes: [], selectedProperties: [] });
+    get().revealProperties('p', true);
+  },
+
+  copyKeyframes: () => {
+    const { selectedKeyframes, project } = get();
+    const comp = currentComp(project);
+    if (!comp || selectedKeyframes.length === 0) return;
+
+    const entries: ClipboardEntry[] = [];
+    for (const ref of selectedKeyframes) {
+      const prop = propertyFor(comp, ref);
+      const kf = prop?.keyframes.find((k) => k.id === ref.kfId);
+      if (kf) entries.push({ offset: kf.time, keyframe: structuredClone(kf) });
+    }
+    if (entries.length === 0) return;
+
+    const earliest = Math.min(...entries.map((e) => e.offset));
+    set({
+      clipboard: entries.map((e) => ({ ...e, offset: e.offset - earliest })),
+      statusMessage: `Copied ${entries.length} keyframe${entries.length === 1 ? '' : 's'}.`,
+    });
+  },
+
+  pasteKeyframes: () => {
+    const { clipboard, selectedProperties, selectedLayerIds, time } = get();
+    if (clipboard.length === 0) return;
+
+    const explicit = selectedProperties.length > 0;
+    const targets: PropertyRef[] = explicit
+      ? selectedProperties
+      : selectedLayerIds.flatMap((layerId) => {
+        const comp = currentComp(get().project);
+        const layer = comp && findLayer(comp, layerId);
+        return layer
+          ? allProperties(layer)
+            .filter((d) => d.property.animated)
+            .map((d) => ({ layerId, path: d.path }))
+          : [];
+      });
+
+    if (targets.length === 0) {
+      set({ statusMessage: 'Select a property to paste into.' });
+      return;
+    }
+
+    let pasted = 0;
+    let skipped = 0;
+    get().mutateComp('Paste Keyframes', (c) => {
+      for (const target of targets) {
+        const prop = propertyFor(c, target);
+        if (!prop) continue;
+        for (const entry of clipboard) {
+          // Without an explicitly chosen property, keyframes simply route to
+          // the properties whose value shape they fit.
+          if (!sameShape(prop.value, entry.keyframe.value)) {
+            if (explicit) skipped += 1;
+            continue;
+          }
+          if (!prop.animated) setAnimated(prop, time, true);
+          const kf = addKeyframe(prop, time + entry.offset, entry.keyframe.value);
+          kf.inType = entry.keyframe.inType;
+          kf.outType = entry.keyframe.outType;
+          kf.easeIn = { ...entry.keyframe.easeIn };
+          kf.easeOut = { ...entry.keyframe.easeOut };
+          kf.tangentMode = entry.keyframe.tangentMode;
+          pasted += 1;
         }
       }
     });
+    set({
+      statusMessage: skipped > 0
+        ? `Pasted ${pasted}; skipped ${skipped} of a different value type.`
+        : `Pasted ${pasted} keyframe${pasted === 1 ? '' : 's'}.`,
+    });
+  },
+
+  applyEasingPreset: (preset) => {
+    const { selectedKeyframes, project } = get();
+    const comp = currentComp(project);
+    if (!comp) return;
+    if (selectedKeyframes.length === 0) {
+      set({ statusMessage: 'Select keyframes to apply an easing preset.' });
+      return;
+    }
+
+    let segments = 0;
+    get().mutateComp(`Apply ${preset.name}`, (c) => {
+      for (const [, refs] of groupByProperty(selectedKeyframes)) {
+        const prop = propertyFor(c, refs[0]);
+        if (!prop) continue;
+        const ids = new Set(refs.map((r) => r.kfId));
+
+        const pairs: [number, number][] = [];
+        for (let i = 0; i < prop.keyframes.length - 1; i += 1) {
+          if (ids.has(prop.keyframes[i].id) && ids.has(prop.keyframes[i + 1].id)) {
+            pairs.push([i, i + 1]);
+          }
+        }
+        // A single selected keyframe eases the segment it starts, or the one
+        // it ends when it is the last keyframe.
+        if (pairs.length === 0 && refs.length === 1) {
+          const index = prop.keyframes.findIndex((k) => k.id === refs[0].kfId);
+          if (index >= 0 && index < prop.keyframes.length - 1) pairs.push([index, index + 1]);
+          else if (index > 0) pairs.push([index - 1, index]);
+        }
+
+        // Bake from the end backwards: baking rewrites the keyframe array.
+        for (const [i, j] of preset.kind === 'baked' ? [...pairs].reverse() : pairs) {
+          const a = prop.keyframes[i];
+          const b = prop.keyframes[j];
+          if (!a || !b) continue;
+          if (preset.kind === 'baked' && preset.fn) {
+            bakeIntoSegment(prop, a, b, preset.fn, c.frameRate);
+          } else if (preset.points) {
+            applyBezierToSegment(a, b, preset.points);
+          }
+          segments += 1;
+        }
+      }
+    });
+
+    set({
+      statusMessage: segments === 0
+        ? 'Select two adjacent keyframes to ease between them.'
+        : `${preset.name} applied to ${segments} segment${segments === 1 ? '' : 's'}.`,
+    });
+  },
+
+  setGraph: (patch) => set({ graph: { ...get().graph, ...patch } }),
+
+  saveCustomPreset: (preset) => {
+    const existing = get().customPresets;
+    const next = existing.some((p) => p.id === preset.id)
+      ? existing.map((p) => (p.id === preset.id ? preset : p))
+      : [...existing, preset];
+    saveCustomPresets(next);
+    set({ customPresets: next, statusMessage: `Saved preset "${preset.name}".` });
+  },
+
+  removeCustomPreset: (id) => {
+    const next = get().customPresets.filter((p) => p.id !== id);
+    saveCustomPresets(next);
+    set({ customPresets: next });
+  },
+
+  renameCustomPreset: (id, name) => {
+    const next = get().customPresets.map((p) => (p.id === id ? { ...p, name } : p));
+    saveCustomPresets(next);
+    set({ customPresets: next });
+  },
+
+  moveCustomPreset: (id, delta) => {
+    const presets = [...get().customPresets];
+    const index = presets.findIndex((p) => p.id === id);
+    const target = index + delta;
+    if (index < 0 || target < 0 || target >= presets.length) return;
+    [presets[index], presets[target]] = [presets[target], presets[index]];
+    saveCustomPresets(presets);
+    set({ customPresets: presets });
   },
 
   goToNextKeyframe: () => {
@@ -693,6 +1057,28 @@ export const useEditor = create<EditorState>()((set, get) => ({
     expanded: {},
   }),
 }));
+
+/** Resolve the property a reference points at, within a composition. */
+function propertyFor(comp: Composition, ref: { layerId: Id; path: string }): Property | undefined {
+  const layer = findLayer(comp, ref.layerId);
+  return layer ? getProperty(layer, ref.path) : undefined;
+}
+
+function groupByProperty(refs: KeyframeRef[]): Map<string, KeyframeRef[]> {
+  const groups = new Map<string, KeyframeRef[]>();
+  for (const ref of refs) {
+    const key = `${ref.layerId}|${ref.path}`;
+    const list = groups.get(key) ?? [];
+    list.push(ref);
+    groups.set(key, list);
+  }
+  return groups;
+}
+
+function sameShape(a: PropertyValue, b: PropertyValue): boolean {
+  if (typeof a === 'number') return typeof b === 'number';
+  return Array.isArray(b) && a.length === b.length;
+}
 
 /** All keyframe times on the selected layers' revealed properties, sorted. */
 function visibleKeyframeTimes(state: EditorState): number[] {

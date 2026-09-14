@@ -28,6 +28,17 @@ export type PropertyKind =
 export type InterpolationType = 'linear' | 'bezier' | 'hold';
 
 /**
+ * How a keyframe's two temporal handles relate to each other, mirroring
+ * After Effects' Bezier / Continuous Bezier / Auto Bezier distinction.
+ * The evaluated curve is a bezier in every case; only the editing rules and
+ * whether the handles are recomputed automatically differ.
+ */
+export type TangentMode = 'independent' | 'continuous' | 'auto';
+
+/** Interpolation of a positional property's motion path through space. */
+export type SpatialType = 'linear' | 'bezier' | 'auto';
+
+/**
  * One side of a keyframe's temporal bezier handle, in After Effects terms.
  * `influence` is 0..100 % of the segment duration the handle spans.
  * `speed` is in value-units per second (magnitude units/sec for vectors).
@@ -46,6 +57,17 @@ export interface Keyframe<T extends PropertyValue = PropertyValue> {
   outType: InterpolationType;
   easeIn: Ease;
   easeOut: Ease;
+  tangentMode: TangentMode;
+  /**
+   * A roving keyframe keeps its value but gives up its time: it is
+   * redistributed between its neighbours so speed stays constant.
+   */
+  roving?: boolean;
+  /** Motion-path interpolation, positional (vec2) properties only. */
+  spatialType?: SpatialType;
+  /** Motion-path tangents, relative to the keyframe's own value, in px. */
+  spatialIn?: Vec2;
+  spatialOut?: Vec2;
 }
 
 export interface Property<T extends PropertyValue = PropertyValue> {
@@ -71,6 +93,12 @@ export interface Property<T extends PropertyValue = PropertyValue> {
   speedPerPixel?: number;
   /** Expression source. Evaluated in a later phase; stored from the start. */
   expression?: string | null;
+  /** True once the vector has been split into independent dimensions. */
+  separated?: boolean;
+  /** The split-out dimensions, present whenever `separated` is true. */
+  dimensions?: Property<number>[];
+  /** Marks a positional property, which gets a motion path and spatial handles. */
+  spatial?: boolean;
 }
 
 export type AnyProperty = Property<number> | Property<Vec2> | Property<RGBA>;

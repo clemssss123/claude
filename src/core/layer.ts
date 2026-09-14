@@ -1,6 +1,7 @@
 import { IDENTITY, multiply, rotation, scaling, translation } from './matrix';
 import type { Matrix } from './matrix';
 import { createProperty, valueAtTime } from './property';
+import { positionAtTime } from './spatial';
 import { uid } from './uid';
 import type {
   AdjustmentLayer, AnyProperty, Composition, Id, Layer, LayerBase, NullLayer,
@@ -15,9 +16,13 @@ export function createTransform(center: Vec2, anchor: Vec2): TransformGroup {
     anchorPoint: createProperty<Vec2>('Anchor Point', 'ADBE Anchor Point', 'vec2', anchor, {
       dimensionNames: ['X', 'Y'],
     }),
-    position: createProperty<Vec2>('Position', 'ADBE Position', 'vec2', center, {
-      dimensionNames: ['X', 'Y'],
-    }),
+    position: Object.assign(
+      createProperty<Vec2>('Position', 'ADBE Position', 'vec2', center, {
+        dimensionNames: ['X', 'Y'],
+      }),
+      // Position is the one transform property with a motion path.
+      { spatial: true },
+    ),
     scale: createProperty<Vec2>('Scale', 'ADBE Scale', 'vec2', [100, 100], {
       unit: '%',
       dimensionNames: ['Width', 'Height'],
@@ -125,7 +130,7 @@ export function layerTime(layer: Layer, compTime: number): number {
 export function localMatrix(layer: Layer, time: number): Matrix {
   const t = layer.transform;
   const anchor = valueAtTime(t.anchorPoint, time);
-  const position = valueAtTime(t.position, time);
+  const position = positionAtTime(t.position, time);
   const scale = valueAtTime(t.scale, time);
   const rotate = valueAtTime(t.rotation, time);
 
@@ -161,6 +166,17 @@ export function worldMatrix(comp: Composition, layer: Layer, time: number): Matr
   return m;
 }
 
+/**
+ * The matrix a layer's own transform is expressed in: its parent's world
+ * transform, or the identity when it has no parent. Position keyframes and
+ * motion-path handles live in this space.
+ */
+export function parentMatrix(comp: Composition, layer: Layer, time: number): Matrix {
+  if (!layer.parentId) return { ...IDENTITY };
+  const parent = comp.layers.find((l) => l.id === layer.parentId);
+  return parent ? worldMatrix(comp, parent, time) : { ...IDENTITY };
+}
+
 /** Would setting `parentId` on `layer` create a parenting cycle? */
 export function wouldCreateCycle(comp: Composition, layerId: Id, parentId: Id | null): boolean {
   let current = parentId;
@@ -173,14 +189,43 @@ export function wouldCreateCycle(comp: Composition, layerId: Id, parentId: Id | 
   return false;
 }
 
-/** The four corners of the layer's source rectangle, in comp space. */
+export interface Bounds { x: number; y: number; width: number; height: number }
+
+/**
+ * A layer's drawn extent in its own coordinates.
+ *
+ * Text is anchored at its baseline origin rather than at a source rectangle,
+ * so its box is estimated from the glyph metrics. The estimate uses an average
+ * advance width; phase 3 replaces it with real measurement once text layers
+ * get their own layout pass.
+ */
+export function layerBounds(layer: Layer): Bounds {
+  if (layer.type !== 'text') {
+    return { x: 0, y: 0, width: layer.width, height: layer.height };
+  }
+  const { text } = layer;
+  const lines = text.source.split('\n');
+  const averageAdvance = text.fontSize * 0.55;
+  const widths = lines.map((line) => {
+    const count = [...line].length;
+    return count * averageAdvance + text.tracking * Math.max(0, count - 1);
+  });
+  const width = Math.max(text.fontSize * 0.5, ...widths);
+  const height = text.fontSize * text.leading * lines.length;
+  const x = text.justification === 'center' ? -width / 2
+    : text.justification === 'right' ? -width : 0;
+  return { x, y: -text.fontSize * 0.8, width, height };
+}
+
+/** The four corners of the layer's drawn extent, in comp space. */
 export function layerCorners(comp: Composition, layer: Layer, time: number): Vec2[] {
   const m = worldMatrix(comp, layer, time);
+  const b = layerBounds(layer);
   const pts: Vec2[] = [
-    [0, 0],
-    [layer.width, 0],
-    [layer.width, layer.height],
-    [0, layer.height],
+    [b.x, b.y],
+    [b.x + b.width, b.y],
+    [b.x + b.width, b.y + b.height],
+    [b.x, b.y + b.height],
   ];
   return pts.map(([x, y]): Vec2 => [
     m.a * x + m.c * y + m.e,
@@ -199,12 +244,24 @@ export interface PropertyDescriptor {
 export function transformProperties(layer: Layer): PropertyDescriptor[] {
   const t = layer.transform;
   return [
-    { path: 'transform.anchorPoint', property: t.anchorPoint, revealKey: 'a' },
-    { path: 'transform.position', property: t.position, revealKey: 'p' },
-    { path: 'transform.scale', property: t.scale, revealKey: 's' },
-    { path: 'transform.rotation', property: t.rotation, revealKey: 'r' },
-    { path: 'transform.opacity', property: t.opacity, revealKey: 't' },
+    ...expand('transform.anchorPoint', t.anchorPoint, 'a'),
+    ...expand('transform.position', t.position, 'p'),
+    ...expand('transform.scale', t.scale, 's'),
+    ...expand('transform.rotation', t.rotation, 'r'),
+    ...expand('transform.opacity', t.opacity, 't'),
   ];
+}
+
+/** A separated vector contributes its dimensions in place of itself. */
+function expand(path: string, property: AnyProperty, revealKey: string): PropertyDescriptor[] {
+  if (!property.separated || !property.dimensions) {
+    return [{ path, property, revealKey }];
+  }
+  return property.dimensions.map((dim, axis) => ({
+    path: `${path}.dimensions.${axis}`,
+    property: dim as AnyProperty,
+    revealKey,
+  }));
 }
 
 /** Every animatable property on a layer. Grows as later phases add groups. */

@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { addLayer, createComposition } from '../composition';
 import {
-  createNullLayer, createSolidLayer, isLayerActiveAt, layerCorners, localMatrix,
-  worldMatrix, wouldCreateCycle,
+  createNullLayer, createSolidLayer, createTextLayer, isLayerActiveAt, layerBounds,
+  layerCorners, localMatrix, worldMatrix, wouldCreateCycle,
 } from '../layer';
+import { pointInLayer } from '../../render/hit';
 import { applyToPoint, invert, multiply, IDENTITY } from '../matrix';
 import { hexToRgba } from '../property';
 
@@ -111,5 +112,27 @@ describe('layer transform', () => {
     expect(isLayerActiveAt(layer, 3)).toBe(false);
     layer.enabled = false;
     expect(isLayerActiveAt(layer, 2)).toBe(false);
+  });
+});
+
+describe('layer bounds', () => {
+  it('bounds a text layer around its glyphs, not the composition', () => {
+    const c = comp();
+    const text = createTextLayer(c, 'HI');
+    addLayer(c, text);
+    const bounds = layerBounds(text);
+    expect(bounds.width).toBeLessThan(c.width / 2);
+    expect(bounds.height).toBeCloseTo(text.text.fontSize * text.text.leading, 6);
+    // Centre justified, so the box straddles the origin.
+    expect(bounds.x).toBeCloseTo(-bounds.width / 2, 6);
+  });
+
+  it('hit-tests a text layer only where its glyphs are', () => {
+    const c = comp();
+    const text = createTextLayer(c, 'HI');
+    addLayer(c, text);
+    text.transform.position.value = [500, 500];
+    expect(pointInLayer(c, text, [500, 500], 0)).toBe(true);
+    expect(pointInLayer(c, text, [900, 500], 0)).toBe(false);
   });
 });

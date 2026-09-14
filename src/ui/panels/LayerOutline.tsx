@@ -134,13 +134,29 @@ const SWITCH_GLYPH: Record<string, string> = {
   motionBlur: 'M',
 };
 
+/** "transform.position.dimensions.0" -> "transform.position", else null. */
+function parentVectorPath(path: string): string | null {
+  const match = /^(.*)\.dimensions\.\d+$/.exec(path);
+  return match ? match[1] : null;
+}
+
 function PropertyRow({ layerId, path, property, time }: {
   layerId: Id; path: string; property: AnyProperty; time: number;
 }) {
   const store = useEditor.getState();
+  const selected = useEditor((s) => s.selectedProperties.some(
+    (p) => p.layerId === layerId && p.path === path,
+  ));
   const value = valueAtTime(property, time);
   const hasKeyAtTime = property.animated
     && property.keyframes.some((k) => Math.abs(k.time - time) < 1e-6);
+
+  // The separate/merge toggle belongs to the vector, so it is shown on the
+  // vector's own row or on the first of its split dimensions.
+  const vectorPath = parentVectorPath(path);
+  const separated = vectorPath !== null;
+  const showSeparateToggle = property.spatial || (separated && path.endsWith('.0'));
+  const togglePath = vectorPath ?? path;
 
   const setComponent = (index: number, next: number, phase: 'drag' | 'commit') => {
     const current = valueAtTime(property, time);
@@ -157,7 +173,7 @@ function PropertyRow({ layerId, path, property, time }: {
   const components = Array.isArray(value) ? value : [value as number];
 
   return (
-    <div className="prop-row" style={{ height: ROW_HEIGHT }}>
+    <div className={`prop-row ${selected ? 'selected' : ''}`} style={{ height: ROW_HEIGHT }}>
       <button
         className={`stopwatch ${property.animated ? 'on' : ''}`}
         title="Toggle animation (stopwatch)"
@@ -165,7 +181,25 @@ function PropertyRow({ layerId, path, property, time }: {
       >
         {property.animated ? '⏱' : '○'}
       </button>
-      <span className="prop-name">{property.name}</span>
+      <span
+        className="prop-name"
+        title="Click to graph this property; double-click to select all its keyframes"
+        onClick={(e) => useEditor.getState().selectProperty(
+          { layerId, path }, e.shiftKey || e.ctrlKey,
+        )}
+        onDoubleClick={() => useEditor.getState().selectAllKeyframesOf({ layerId, path })}
+      >
+        {property.name}
+      </span>
+      {showSeparateToggle && (
+        <button
+          className={`sep-dimensions ${separated ? 'on' : ''}`}
+          title={separated ? 'Merge dimensions' : 'Separate dimensions'}
+          onClick={() => useEditor.getState().toggleSeparateDimensions(layerId, togglePath)}
+        >
+          ⇔
+        </button>
+      )}
       <div className="prop-value">
         {components.map((component, i) => (
           <ScrubbableNumber
