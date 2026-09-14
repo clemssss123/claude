@@ -1,5 +1,6 @@
 import { findLayer } from '@/core/composition';
-import { activeComposition, deserializeProject, serializeProject } from '@/core/project';
+import { activeComposition } from '@/core/project';
+import { openProject, saveProject } from '@/state/persistence';
 import { valueAtTime } from '@/core/property';
 import { useEditor } from '@/state/store';
 import type { EditorState } from '@/state/store';
@@ -28,6 +29,8 @@ export interface Shortcut {
   status: ShortcutStatus;
   /** Phase that implements a planned command. */
   phase?: number;
+  /** Why a command is not available, when no phase will bring it. */
+  note?: string;
   run?: (state: EditorState) => void;
   /** Allow while a text field has focus (undo/redo only). */
   allowInInput?: boolean;
@@ -326,7 +329,7 @@ export const SHORTCUTS: Shortcut[] = [
     keys: ['l'],
     category: 'Reveal',
     status: 'planned',
-    phase: 6,
+    note: 'audio layers are not part of this build',
   },
 
   // -- Keyframes -----------------------------------------------------------
@@ -637,8 +640,8 @@ export const SHORTCUTS: Shortcut[] = [
     label: 'Solid Settings',
     keys: ['ctrl+shift+y'],
     category: 'Layer',
-    status: 'planned',
-    phase: 3,
+    status: 'ready',
+    run: (s) => s.openDialog('solidSettings'),
   },
 
   // -- Composition & project ----------------------------------------------
@@ -682,7 +685,23 @@ export const SHORTCUTS: Shortcut[] = [
     keys: ['ctrl+s'],
     category: 'Edit',
     status: 'ready',
-    run: (s) => saveProjectFile(s),
+    run: (s) => { void saveProjectFile(s); },
+  },
+  {
+    id: 'project.saveAs',
+    label: 'Save project as…',
+    keys: ['ctrl+shift+s'],
+    category: 'Edit',
+    status: 'ready',
+    run: (s) => { void saveProjectFile(s, true); },
+  },
+  {
+    id: 'project.export',
+    label: 'Export composition',
+    keys: ['ctrl+m'],
+    category: 'Edit',
+    status: 'ready',
+    run: (s) => s.openDialog('export'),
   },
   {
     id: 'project.open',
@@ -690,7 +709,7 @@ export const SHORTCUTS: Shortcut[] = [
     keys: ['ctrl+o'],
     category: 'Edit',
     status: 'ready',
-    run: () => openProjectFile(),
+    run: () => { void openProjectFile(); },
   },
 
   // -- View ----------------------------------------------------------------
@@ -850,34 +869,29 @@ export function runShortcut(shortcut: Shortcut): boolean {
   return true;
 }
 
-/** Download the project as JSON. A File System Access save arrives in phase 7. */
-export function saveProjectFile(state: EditorState): void {
-  const blob = new Blob([serializeProject(state.project)], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = `${state.project.name.replace(/\s+/g, '-').toLowerCase()}.kfs.json`;
-  link.click();
-  URL.revokeObjectURL(url);
-  state.setStatus('Project saved.');
+/** Save, writing back to the open file where the browser allows it. */
+export async function saveProjectFile(state: EditorState, forcePicker = false): Promise<void> {
+  try {
+    const name = await saveProject(state.project, forcePicker);
+    state.setStatus(`Saved ${name}.`);
+  } catch (error) {
+    // An abort is the user closing the picker, not a failure worth reporting.
+    if (error instanceof DOMException && error.name === 'AbortError') return;
+    state.setStatus(error instanceof Error ? error.message : 'Could not save the project.');
+  }
 }
 
-export function openProjectFile(): void {
-  const input = document.createElement('input');
-  input.type = 'file';
-  input.accept = '.json,application/json';
-  input.onchange = async () => {
-    const file = input.files?.[0];
-    if (!file) return;
-    const state = useEditor.getState();
-    try {
-      state.loadProject(deserializeProject(await file.text()));
-      state.setStatus(`Opened ${file.name}.`);
-    } catch (error) {
-      state.setStatus(error instanceof Error ? error.message : 'Could not open that file.');
-    }
-  };
-  input.click();
+export async function openProjectFile(): Promise<void> {
+  const state = useEditor.getState();
+  try {
+    const opened = await openProject();
+    if (!opened) return;
+    state.loadProject(opened.project);
+    state.setStatus(`Opened ${opened.name}.`);
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') return;
+    state.setStatus(error instanceof Error ? error.message : 'Could not open that file.');
+  }
 }
 
 export function formatChord(chord: string): string {

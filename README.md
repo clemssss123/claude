@@ -1,7 +1,7 @@
 # Keyframe Studio
 
 A browser-based 2D motion graphics compositor modeled on Adobe After Effects.
-TypeScript + React, no 3D. Built in phases; this repository is at **phase 6**.
+TypeScript + React, no 3D. Built in phases; this repository is at **phase 7**, the last one.
 
 ```bash
 npm install
@@ -106,7 +106,7 @@ and centre cross in the viewer and hit-test against their real box.
 
 ### Effects
 
-An engine plus **80 effects** across twelve categories. An effect is a
+An engine plus **82 effects** across twelve categories. An effect is a
 definition — a name, a parameter schema and a render function — so adding one
 means adding a file, not touching the engine (`src/render/effects/`).
 Parameters become ordinary animatable properties, so every effect keyframes,
@@ -123,8 +123,8 @@ layer at other times through that same pipeline.
 | --- | --- |
 | Blur & Sharpen (9) | Gaussian Blur, Fast Box Blur, Directional Blur, Radial Blur, Channel Blur, Camera Lens Blur, Bilateral Blur, Sharpen, Unsharp Mask |
 | Color Correction (14) | Curves, Levels, Brightness & Contrast, Hue/Saturation, Exposure, Vibrance, Color Balance (HLS), Tint, Tritone, Photo Filter, Change to Color, Black & White, Colorama, Auto Contrast |
-| Stylize (12) | Deep Glow, Glow, Motion Tile, Mosaic, Find Edges, Vignette, Posterize, Threshold, Roughen Edges, Scatter, Cartoon, CC Kaleida |
-| Distort (11) | Transform, Offset, Polar Coordinates, Wave Warp, Bulge, Twirl, Turbulent Displace, Displacement Map, Ripple, Corner Pin, Optics Compensation |
+| Stylize (13) | Deep Glow, Twitch, Glow, Motion Tile, Mosaic, Find Edges, Vignette, Posterize, Threshold, Roughen Edges, Scatter, Cartoon, CC Kaleida |
+| Distort (12) | Shake, Transform, Offset, Polar Coordinates, Wave Warp, Bulge, Twirl, Turbulent Displace, Displacement Map, Ripple, Corner Pin, Optics Compensation |
 | Generate (9) | Fill, Gradient Ramp, 4-Color Gradient, Checkerboard, Grid, Cell Pattern, Lens Flare, Beam, Circle |
 | Noise & Grain (6) | Fractal Noise, Noise, Noise HLS, Add Grain, Median, Dust & Scratches |
 | Transition (5) | Linear Wipe, Radial Wipe, Venetian Blinds, Block Dissolve, Gradient Wipe |
@@ -138,6 +138,30 @@ Effect Controls lists them with their parameters, enable, reorder and delete;
 **Ctrl+5** opens a searchable Effects & Presets browser. Curves gets an
 interactive control: drag its five points and the plotted spline is the same
 one the pixels are sampled through.
+
+**Shake** drives the whole layer from layered noise — magnitude, frequency,
+octaves, smoothness, separate position/rotation/scale amounts, per-axis locks
+and a seed — for camera shake you did not have to keyframe. **Twitch** chops
+the timeline into blocks and glitches each one differently: torn bands, a
+whole-frame jolt, blur and an RGB split, held for a beat rather than
+flickering every frame.
+
+### Export and files
+
+**Export** (Ctrl+M) renders the work area or the whole composition through the
+same pipeline the viewer uses, at full, half or quarter size. Frames go to a
+WebCodecs `VideoEncoder` and a muxer wraps them in **MP4** or **WebM**; a
+**PNG sequence** in a zip is always available and needs no encoder at all. The
+dialog names the codec it will actually use, because H.264 is a licensed codec
+that some browsers ship without — where it is missing the MP4 falls back to
+AV1 and says so, rather than silently producing something different from what
+you asked for. Progress is shown per frame and the export can be cancelled.
+
+**Files** — Save (Ctrl+S) writes back to the file you opened through the File
+System Access API, Save As (Ctrl+Shift+S) picks a new one, and browsers without
+that API fall back to a download and a file picker. Separately the project is
+snapshotted into IndexedDB every fifteen seconds, and a new session offers that
+snapshot back rather than loading over your work.
 
 ### Editor
 
@@ -172,13 +196,15 @@ a single history step.
 Interpolation (Ctrl+Alt+K), Effects & Presets (Ctrl+5) and the keymap (F1).
 
 **Keyboard** — the After Effects keymap lives in one table
-(`src/input/shortcuts.ts`). 96 of 98 bindings are live; the rest are registered
-against their real AE chord and shown greyed out with the phase that implements
-them. Press **F1** for the list. Double-tap chords (UU/MM/EE) are handled.
+(`src/input/shortcuts.ts`). 99 of 100 bindings are live; the one that is not is
+Reveal Audio Levels, because audio layers are not part of this build; it is
+still registered against its real AE chord and shown as unavailable. Press
+**F1** for the list. Double-tap chords (UU/MM/EE) are handled.
 
 ## What is not built yet
 
-Phase 7 from the plan: WebCodecs export.
+Audio: there are no audio layers, so Reveal Audio Levels and the audio-driven
+effects (Audio Spectrum, Audio Waveform) do not exist.
 
 Effects that read a *second layer* in After Effects — Displacement Map,
 Gradient Wipe, Set Matte, Compound Blur — read the layer's own channels here

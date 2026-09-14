@@ -5,6 +5,11 @@ import { SHORTCUT_BY_CHORD, chordFromEvent, runShortcut } from './shortcuts';
 /** Two presses of the same letter within this window make a UU/MM/EE chord. */
 const DOUBLE_TAP_MS = 400;
 
+function unavailableMessage(shortcut: { label: string; note?: string; phase?: number }): string {
+  if (shortcut.note) return `${shortcut.label} — ${shortcut.note}.`;
+  return `${shortcut.label} arrives in phase ${shortcut.phase ?? '?'}.`;
+}
+
 function isTextEntry(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
   const tag = target.tagName;
@@ -31,9 +36,7 @@ export function useShortcuts(): void {
             lastKey.current = null;
             event.preventDefault();
             if (!runShortcut(doubled)) {
-              useEditor.getState().setStatus(
-                `${doubled.label} arrives in phase ${doubled.phase ?? '?'}.`,
-              );
+              useEditor.getState().setStatus(unavailableMessage(doubled));
             }
             return;
           }
@@ -47,9 +50,7 @@ export function useShortcuts(): void {
 
       event.preventDefault();
       if (!runShortcut(shortcut)) {
-        useEditor.getState().setStatus(
-          `${shortcut.label} (${chord}) arrives in phase ${shortcut.phase ?? '?'}.`,
-        );
+        useEditor.getState().setStatus(unavailableMessage(shortcut));
       }
     }
 

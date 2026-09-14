@@ -58,8 +58,12 @@ export function ShortcutsDialog({ onClose }: { onClose: () => void }) {
                       </td>
                       <td>{shortcut.label}</td>
                       <td style={{ width: 90, textAlign: 'right' }}>
-                        <span className={`badge ${shortcut.status === 'ready' ? 'ready' : ''}`}>
-                          {shortcut.status === 'ready' ? 'active' : `phase ${shortcut.phase ?? '?'}`}
+                        <span
+                          className={`badge ${shortcut.status === 'ready' ? 'ready' : ''}`}
+                          title={shortcut.note ?? ''}
+                        >
+                          {shortcut.status === 'ready' ? 'active'
+                            : shortcut.note ? 'n/a' : `phase ${shortcut.phase ?? '?'}`}
                         </span>
                       </td>
                     </tr>

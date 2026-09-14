@@ -126,7 +126,7 @@ export interface EditorState {
   /** Name of the open modal dialog, if any. */
   dialog:
     | 'compSettings' | 'shortcuts' | 'about' | 'velocity' | 'interpolation'
-    | 'effects' | null;
+    | 'effects' | 'export' | 'solidSettings' | null;
 
   // -- document mutation ---------------------------------------------------
   mutate: (label: string, recipe: (project: Project) => void, options?: MutateOptions) => void;

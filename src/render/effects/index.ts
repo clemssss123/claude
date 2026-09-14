@@ -12,5 +12,6 @@ import './keying';
 import './noise';
 import './transition';
 import './time';
+import './shake';
 
 export * from './registry';

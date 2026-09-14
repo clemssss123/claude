@@ -569,3 +569,42 @@ input:focus, select:focus { outline: 1px solid var(--accent); }
   border-radius: 2px;
   cursor: crosshair;
 }
+
+/* -- export -------------------------------------------------------------- */
+.export-progress { margin-top: 12px; color: var(--text-dim); }
+.export-bar {
+  height: 6px;
+  background: var(--bg-input);
+  border: 1px solid var(--border-soft);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 6px;
+}
+.export-bar div { height: 100%; background: var(--accent); transition: width 0.1s linear; }
+.export-error {
+  margin-top: 10px;
+  padding: 6px 8px;
+  border-radius: 2px;
+  background: #35222a;
+  border: 1px solid #8f3b3b;
+  color: #ffb3b3;
+}
+.export-done {
+  margin-top: 10px;
+  padding: 6px 8px;
+  border-radius: 2px;
+  background: #1f2f22;
+  border: 1px solid #3c6b42;
+  color: #b6e7bd;
+}
+
+.restore-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px;
+  background: #23303f;
+  border-top: 1px solid var(--accent-dim);
+  color: var(--text-bright);
+}
+.restore-bar span { flex: 1; }
