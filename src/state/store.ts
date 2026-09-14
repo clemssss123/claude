@@ -4,9 +4,14 @@ import {
   removeLayer, uniqueLayerName,
 } from '@/core/composition';
 import {
-  allProperties, createAdjustmentLayer, createNullLayer, createSolidLayer,
-  createTextLayer, getProperty, transformProperties, wouldCreateCycle,
+  allProperties, createAdjustmentLayer, createMask, createNullLayer, createShapeLayer,
+  createSolidLayer, createTextLayer, getProperty, layerBounds, wouldCreateCycle,
 } from '@/core/layer';
+import {
+  createEllipseShape, createFill, createOffsetPaths, createPathShape, createRectShape,
+  createRepeater, createShapeGroup, createStarShape, createStroke, createTrimPaths,
+} from '@/core/shapes';
+import { createRangeSelector, createTextAnimator } from '@/core/text';
 import { applyBezierToSegment, bakeIntoSegment, loadCustomPresets, saveCustomPresets } from '@/core/easings';
 import type { EasingPreset } from '@/core/easings';
 import { applyEasyEase, enforceTangentMode } from '@/core/interpolation';
@@ -15,12 +20,15 @@ import {
   moveKeyframe, removeKeyframe, separateDimensions, setAnimated, setRoving,
   setValueAtTime, valueAtTime,
 } from '@/core/property';
+import { ellipsePath, isBezierPath, rectPath } from '@/core/path';
+import type { BezierPath } from '@/core/path';
 import { activeComposition, createStarterProject } from '@/core/project';
 import { spatialInTangent, spatialOutTangent } from '@/core/spatial';
 import { snapToFrame } from '@/core/time';
 import type {
-  BlendMode, Composition, Ease, Id, InterpolationType, Keyframe, Layer, Project,
-  Property, PropertyValue, RGBA, SpatialType, TangentMode, Vec2,
+  BlendMode, Composition, Ease, Id, InterpolationType, Keyframe, Layer, Mask,
+  Project, Property, PropertyValue, RGBA, ShapeItem, SpatialType,
+  TangentMode, TextAnimatorProperties, TrackMatteType, Vec2,
 } from '@/core/types';
 
 /** How long two edits may be apart and still collapse into one undo step. */
@@ -28,7 +36,8 @@ const COALESCE_WINDOW_MS = 700;
 const HISTORY_LIMIT = 200;
 
 export type Tool =
-  | 'selection' | 'hand' | 'zoom' | 'rotation' | 'pen' | 'text' | 'shape' | 'anchor';
+  | 'selection' | 'hand' | 'zoom' | 'rotation' | 'pen' | 'text'
+  | 'rect' | 'ellipse' | 'anchor';
 
 export interface KeyframeRef {
   layerId: Id;
@@ -151,6 +160,33 @@ export interface EditorState {
   setLayerInPoint: (id: Id, time: number) => void;
   setLayerOutPoint: (id: Id, time: number) => void;
   centerAnchorInContent: () => void;
+  splitLayer: () => void;
+  setTrackMatte: (id: Id, type: TrackMatteType) => void;
+
+  // -- masks ---------------------------------------------------------------
+  addMask: (layerId: Id, shape: 'rect' | 'ellipse', bounds?: { centre: Vec2; size: Vec2 }) => void;
+  addMaskFromPath: (layerId: Id, path: BezierPath) => void;
+  deleteMask: (layerId: Id, maskIndex: number) => void;
+  updateMask: (layerId: Id, maskIndex: number, patch: Partial<Omit<Mask, 'id' | 'path'>>) => void;
+  setMaskPath: (layerId: Id, maskIndex: number, path: BezierPath, coalesceKey?: string) => void;
+
+  // -- shape layers --------------------------------------------------------
+  addShapeLayer: (kind: 'rect' | 'ellipse' | 'star' | 'polygon' | 'empty') => void;
+  addShapeLayerAt: (kind: 'rect' | 'ellipse', centre: Vec2, size: Vec2) => void;
+  addShapeLayerFromPath: (path: BezierPath) => void;
+  addShapeItem: (layerId: Id, kind: 'fill' | 'stroke' | 'trim' | 'repeater' | 'offset') => void;
+  removeShapeItem: (layerId: Id, path: string) => void;
+
+  // -- text animators ------------------------------------------------------
+  addTextAnimator: (layerId: Id) => void;
+  addRangeSelector: (layerId: Id, animatorIndex: number) => void;
+  toggleAnimatorProperty: (
+    layerId: Id, animatorIndex: number, key: keyof TextAnimatorProperties['enabled'],
+  ) => void;
+  setSelectorOption: (
+    layerId: Id, animatorIndex: number, selectorIndex: number,
+    patch: { shape?: string; units?: string; mode?: string },
+  ) => void;
 
   // -- properties and keyframes -------------------------------------------
   setPropertyValue: (layerId: Id, path: string, value: PropertyValue, coalesceKey?: string) => void;
@@ -184,6 +220,7 @@ export interface EditorState {
   // -- timeline / panels ---------------------------------------------------
   revealProperties: (revealKey: string, additive: boolean) => void;
   revealAnimated: () => void;
+  revealAll: (layerId: Id) => void;
   toggleExpanded: (id: Id) => void;
   setTool: (tool: Tool) => void;
   setViewer: (patch: Partial<ViewerState>) => void;
@@ -528,6 +565,220 @@ export const useEditor = create<EditorState>()((set, get) => ({
           pos[1] + dx * Math.sin(rot) + dy * Math.cos(rot),
         ]);
       }
+    });
+  },
+
+  splitLayer: () => {
+    const { selectedLayerIds, time } = get();
+    if (selectedLayerIds.length === 0) return;
+    get().mutateComp('Split Layer', (c) => {
+      for (const id of selectedLayerIds) {
+        const index = layerIndex(c, id);
+        const layer = c.layers[index];
+        if (!layer || time <= layer.inPoint || time >= layer.outPoint) continue;
+        const copy = structuredClone(layer);
+        copy.id = `${layer.id}_split_${Math.random().toString(36).slice(2, 7)}`;
+        reidentify(copy);
+        copy.name = uniqueLayerName(c, layer.name);
+        // The copy takes the tail; the original keeps the head.
+        copy.inPoint = time;
+        layer.outPoint = time;
+        c.layers.splice(index, 0, copy);
+      }
+    });
+  },
+
+  setTrackMatte: (id, type) => {
+    get().mutateComp('Set Track Matte', (c) => {
+      const layer = findLayer(c, id);
+      if (layer) layer.trackMatte = type;
+    });
+  },
+
+  addMask: (layerId, shape, bounds) => {
+    get().mutateComp('New Mask', (c) => {
+      const layer = findLayer(c, layerId);
+      if (!layer) return;
+      const box = layerBounds(layer);
+      const centre: Vec2 = bounds?.centre ?? [box.x + box.width / 2, box.y + box.height / 2];
+      const size: Vec2 = bounds?.size ?? [box.width, box.height];
+      const path = shape === 'ellipse' ? ellipsePath(centre, size) : rectPath(centre, size);
+      layer.masks.push(createMask(layer, path));
+    });
+    get().revealProperties('m', true);
+  },
+
+  addMaskFromPath: (layerId, path) => {
+    get().mutateComp('New Mask', (c) => {
+      const layer = findLayer(c, layerId);
+      if (layer) layer.masks.push(createMask(layer, path));
+    });
+    get().revealProperties('m', true);
+  },
+
+  deleteMask: (layerId, maskIndex) => {
+    get().mutateComp('Delete Mask', (c) => {
+      const layer = findLayer(c, layerId);
+      if (layer) layer.masks.splice(maskIndex, 1);
+    });
+    set({ selectedKeyframes: [], selectedProperties: [] });
+  },
+
+  updateMask: (layerId, maskIndex, patch) => {
+    get().mutateComp('Mask Settings', (c) => {
+      const mask = findLayer(c, layerId)?.masks[maskIndex];
+      if (mask) Object.assign(mask, patch);
+    });
+  },
+
+  setMaskPath: (layerId, maskIndex, path, coalesceKey) => {
+    const time = get().time;
+    get().mutateComp('Edit Mask Path', (c) => {
+      const mask = findLayer(c, layerId)?.masks[maskIndex];
+      if (mask) setValueAtTime(mask.path, time, path);
+    }, coalesceKey ? { coalesceKey } : undefined);
+  },
+
+  addShapeLayer: (kind) => {
+    const comp = currentComp(get().project);
+    if (!comp) return;
+    let newId: Id | null = null;
+    get().mutateComp('New Shape Layer', (c) => {
+      const layer = createShapeLayer(c);
+      const fill = createFill(hexToRgba(randomSolidColor()));
+      const size: Vec2 = [Math.min(400, c.width / 3), Math.min(400, c.height / 3)];
+      if (kind === 'rect') {
+        layer.contents = [createShapeGroup([createRectShape(size), fill], 'Rectangle 1')];
+      } else if (kind === 'ellipse') {
+        layer.contents = [createShapeGroup([createEllipseShape(size), fill], 'Ellipse 1')];
+      } else if (kind === 'star' || kind === 'polygon') {
+        layer.contents = [
+          createShapeGroup([createStarShape(kind === 'star'), fill],
+            kind === 'star' ? 'Star 1' : 'Polygon 1'),
+        ];
+      }
+      // Shape contents sit around the layer origin, so the origin goes centre-frame.
+      layer.transform.position.value = [c.width / 2, c.height / 2];
+      addLayer(c, layer);
+      newId = layer.id;
+    });
+    if (newId) {
+      get().selectLayer(newId);
+      get().toggleExpanded(newId);
+    }
+  },
+
+  addShapeLayerAt: (kind, centre, size) => {
+    let newId: Id | null = null;
+    get().mutateComp('New Shape Layer', (c) => {
+      const layer = createShapeLayer(c);
+      const fill = createFill(hexToRgba(randomSolidColor()));
+      const item = kind === 'ellipse'
+        ? createEllipseShape(size)
+        : createRectShape(size);
+      layer.contents = [createShapeGroup(
+        [item, fill], kind === 'ellipse' ? 'Ellipse 1' : 'Rectangle 1',
+      )];
+      // The drawn centre becomes the layer position, so the shape sits at the origin.
+      layer.transform.position.value = centre;
+      addLayer(c, layer);
+      newId = layer.id;
+    });
+    if (newId) {
+      get().selectLayer(newId);
+      get().toggleExpanded(newId);
+    }
+  },
+
+  addShapeLayerFromPath: (path) => {
+    let newId: Id | null = null;
+    get().mutateComp('New Shape Layer', (c) => {
+      const layer = createShapeLayer(c);
+      layer.contents = [createShapeGroup(
+        [createPathShape(path), createFill(hexToRgba(randomSolidColor()))], 'Shape 1',
+      )];
+      addLayer(c, layer);
+      newId = layer.id;
+    });
+    if (newId) {
+      get().selectLayer(newId);
+      get().toggleExpanded(newId);
+    }
+  },
+
+  addShapeItem: (layerId, kind) => {
+    get().mutateComp('Add Shape Item', (c) => {
+      const layer = findLayer(c, layerId);
+      if (!layer || layer.type !== 'shape') return;
+      const item: ShapeItem = kind === 'fill' ? createFill([1, 1, 1, 1])
+        : kind === 'stroke' ? createStroke([1, 1, 1, 1])
+          : kind === 'trim' ? createTrimPaths()
+            : kind === 'repeater' ? createRepeater() : createOffsetPaths();
+
+      // Styles and modifiers join the first group, where the paths live.
+      const group = layer.contents.find((content) => content.type === 'group');
+      if (group && group.type === 'group') group.items.push(item);
+      else layer.contents.push(item);
+    });
+    get().revealAll(layerId);
+  },
+
+
+  removeShapeItem: (layerId, path) => {
+    get().mutateComp('Delete Shape Item', (c) => {
+      const layer = findLayer(c, layerId);
+      if (!layer || layer.type !== 'shape') return;
+      const parts = path.split('.');
+      const index = Number(parts[parts.length - 1]);
+      const parentPath = parts.slice(0, -1).join('.');
+      const parent = parentPath === 'contents'
+        ? layer.contents
+        : (getByPath(layer, parentPath) as ShapeItem[] | undefined);
+      if (Array.isArray(parent)) parent.splice(index, 1);
+    });
+    set({ selectedProperties: [], selectedKeyframes: [] });
+  },
+
+  addTextAnimator: (layerId) => {
+    get().mutateComp('Add Text Animator', (c) => {
+      const layer = findLayer(c, layerId);
+      if (layer?.type === 'text') {
+        layer.animators.push(createTextAnimator(`Animator ${layer.animators.length + 1}`));
+      }
+    });
+    // A fresh animator has no keyframes yet, so reveal the whole tree rather
+    // than only the animated rows.
+    get().revealAll(layerId);
+  },
+
+  addRangeSelector: (layerId, animatorIndex) => {
+    get().mutateComp('Add Range Selector', (c) => {
+      const layer = findLayer(c, layerId);
+      const animator = layer?.type === 'text' ? layer.animators[animatorIndex] : undefined;
+      if (animator) {
+        animator.selectors.push(
+          createRangeSelector(`Range Selector ${animator.selectors.length + 1}`),
+        );
+      }
+    });
+    get().revealAll(layerId);
+  },
+
+  toggleAnimatorProperty: (layerId, animatorIndex, key) => {
+    get().mutateComp('Animator Property', (c) => {
+      const layer = findLayer(c, layerId);
+      const animator = layer?.type === 'text' ? layer.animators[animatorIndex] : undefined;
+      if (animator) animator.properties.enabled[key] = !animator.properties.enabled[key];
+    });
+    get().revealAll(layerId);
+  },
+
+  setSelectorOption: (layerId, animatorIndex, selectorIndex, patch) => {
+    get().mutateComp('Selector Settings', (c) => {
+      const layer = findLayer(c, layerId);
+      const animator = layer?.type === 'text' ? layer.animators[animatorIndex] : undefined;
+      const selector = animator?.selectors[selectorIndex];
+      if (selector) Object.assign(selector, patch);
     });
   },
 
@@ -958,9 +1209,11 @@ export const useEditor = create<EditorState>()((set, get) => ({
     for (const id of state.selectedLayerIds) {
       const layer = findLayer(comp, id);
       if (!layer) continue;
-      const matches = transformProperties(layer)
-        .filter((d) => d.revealKey === revealKey)
-        .map((d) => d.path);
+      // MM reveals every mask property; every other key matches a property's
+      // own reveal shortcut.
+      const matches = revealKey === 'mm'
+        ? allProperties(layer).filter((d) => d.path.startsWith('masks.')).map((d) => d.path)
+        : allProperties(layer).filter((d) => d.revealKey === revealKey).map((d) => d.path);
       if (matches.length === 0) continue;
       const existing = additive ? revealed[id] ?? [] : [];
       const merged = Array.from(new Set([...existing, ...matches]));
@@ -989,16 +1242,29 @@ export const useEditor = create<EditorState>()((set, get) => ({
     set({ revealed, expanded });
   },
 
+  revealAll: (layerId) => {
+    const state = get();
+    const comp = currentComp(state.project);
+    const layer = comp && findLayer(comp, layerId);
+    if (!layer) return;
+    set({
+      revealed: { ...state.revealed, [layerId]: allProperties(layer).map((d) => d.path) },
+      expanded: { ...state.expanded, [layerId]: true },
+    });
+  },
+
   toggleExpanded: (id) => {
     const state = get();
     const open = !state.expanded[id];
     const comp = currentComp(state.project);
     const layer = comp && findLayer(comp, id);
+    // Twirling a layer open shows its whole property tree — masks, contents
+    // and animators included — which is what makes those groups reachable.
     set({
       expanded: { ...state.expanded, [id]: open },
       revealed: {
         ...state.revealed,
-        [id]: open && layer ? transformProperties(layer).map((d) => d.path) : [],
+        [id]: open && layer ? allProperties(layer).map((d) => d.path) : [],
       },
     });
   },
@@ -1058,6 +1324,16 @@ export const useEditor = create<EditorState>()((set, get) => ({
   }),
 }));
 
+/** Walk a dotted path on a layer, returning whatever sits there. */
+function getByPath(root: unknown, path: string): unknown {
+  let node: unknown = root;
+  for (const key of path.split('.')) {
+    if (node === null || typeof node !== 'object') return undefined;
+    node = (node as Record<string, unknown>)[key];
+  }
+  return node;
+}
+
 /** Resolve the property a reference points at, within a composition. */
 function propertyFor(comp: Composition, ref: { layerId: Id; path: string }): Property | undefined {
   const layer = findLayer(comp, ref.layerId);
@@ -1077,7 +1353,8 @@ function groupByProperty(refs: KeyframeRef[]): Map<string, KeyframeRef[]> {
 
 function sameShape(a: PropertyValue, b: PropertyValue): boolean {
   if (typeof a === 'number') return typeof b === 'number';
-  return Array.isArray(b) && a.length === b.length;
+  if (isBezierPath(a)) return isBezierPath(b);
+  return Array.isArray(a) && Array.isArray(b) && a.length === b.length;
 }
 
 /** All keyframe times on the selected layers' revealed properties, sorted. */

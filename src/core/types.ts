@@ -9,12 +9,14 @@
  * UI boundary, where the composition's frame rate converts between the two.
  */
 
+import type { BezierPath } from './path';
+
 export type Id = string;
 export type Vec2 = [number, number];
 /** Straight (non-premultiplied) RGBA, each channel 0..1. */
 export type RGBA = [number, number, number, number];
 
-export type PropertyValue = number | Vec2 | RGBA;
+export type PropertyValue = number | Vec2 | RGBA | BezierPath;
 
 export type PropertyKind =
   | 'number'
@@ -22,7 +24,8 @@ export type PropertyKind =
   | 'angle'
   | 'vec2'
   | 'color'
-  | 'checkbox';
+  | 'checkbox'
+  | 'path';
 
 /** Temporal interpolation of one side of a keyframe. */
 export type InterpolationType = 'linear' | 'bezier' | 'hold';
@@ -101,7 +104,8 @@ export interface Property<T extends PropertyValue = PropertyValue> {
   spatial?: boolean;
 }
 
-export type AnyProperty = Property<number> | Property<Vec2> | Property<RGBA>;
+export type AnyProperty =
+  | Property<number> | Property<Vec2> | Property<RGBA> | Property<BezierPath>;
 
 export interface TransformGroup {
   anchorPoint: Property<Vec2>;
@@ -139,6 +143,33 @@ export type BlendMode =
   | 'luminosity'
   | 'add';
 
+/** How a mask combines with the masks above it in the stack. */
+export type MaskMode =
+  | 'none' | 'add' | 'subtract' | 'intersect' | 'lighten' | 'darken' | 'difference';
+
+export interface Mask {
+  id: Id;
+  name: string;
+  mode: MaskMode;
+  inverted: boolean;
+  locked: boolean;
+  /** Outline colour in the viewer. */
+  color: string;
+  path: Property<BezierPath>;
+  /** Horizontal and vertical feather radius in pixels. */
+  feather: Property<Vec2>;
+  opacity: Property<number>;
+  /** Grows (positive) or shrinks (negative) the mask, in pixels. */
+  expansion: Property<number>;
+}
+
+/**
+ * Track matte: the layer directly above supplies this layer's transparency.
+ * The matte layer is not drawn itself, exactly as in After Effects.
+ */
+export type TrackMatteType =
+  | 'none' | 'alpha' | 'alpha-inverted' | 'luma' | 'luma-inverted';
+
 export interface LayerBase {
   id: Id;
   name: string;
@@ -164,6 +195,8 @@ export interface LayerBase {
   width: number;
   height: number;
   transform: TransformGroup;
+  masks: Mask[];
+  trackMatte: TrackMatteType;
 }
 
 export interface SolidLayer extends LayerBase {
@@ -190,12 +223,158 @@ export interface TextStyle {
   justification: 'left' | 'center' | 'right';
 }
 
+/** Shape of a range selector's falloff across the characters it covers. */
+export type SelectorShape =
+  | 'square' | 'ramp-up' | 'ramp-down' | 'triangle' | 'round' | 'smooth';
+
+export interface TextRangeSelector {
+  id: Id;
+  name: string;
+  /** Percentages of the text, or character indices, depending on `units`. */
+  start: Property<number>;
+  end: Property<number>;
+  offset: Property<number>;
+  units: 'percent' | 'index';
+  shape: SelectorShape;
+  mode: 'add' | 'subtract';
+  /** Scales the selector's whole influence. */
+  amount: Property<number>;
+  easeHigh: Property<number>;
+  easeLow: Property<number>;
+}
+
+/** The transform an animator applies, weighted per character by its selectors. */
+export interface TextAnimatorProperties {
+  position: Property<Vec2>;
+  scale: Property<Vec2>;
+  rotation: Property<number>;
+  opacity: Property<number>;
+  tracking: Property<number>;
+  fillColor: Property<RGBA>;
+  /** Which of the above this animator actually drives. */
+  enabled: Record<'position' | 'scale' | 'rotation' | 'opacity' | 'tracking' | 'fillColor', boolean>;
+}
+
+export interface TextAnimator {
+  id: Id;
+  name: string;
+  selectors: TextRangeSelector[];
+  properties: TextAnimatorProperties;
+}
+
 export interface TextLayer extends LayerBase {
   type: 'text';
   text: TextStyle;
+  animators: TextAnimator[];
 }
 
-export type Layer = SolidLayer | NullLayer | AdjustmentLayer | TextLayer;
+// -- shape layers ----------------------------------------------------------
+
+export interface ShapeTransform {
+  anchorPoint: Property<Vec2>;
+  position: Property<Vec2>;
+  scale: Property<Vec2>;
+  rotation: Property<number>;
+  opacity: Property<number>;
+  skew: Property<number>;
+  skewAxis: Property<number>;
+}
+
+export interface ShapeItemBase {
+  id: Id;
+  name: string;
+  enabled: boolean;
+}
+
+export interface RectShape extends ShapeItemBase {
+  type: 'rect';
+  size: Property<Vec2>;
+  position: Property<Vec2>;
+  roundness: Property<number>;
+}
+
+export interface EllipseShape extends ShapeItemBase {
+  type: 'ellipse';
+  size: Property<Vec2>;
+  position: Property<Vec2>;
+}
+
+export interface StarShape extends ShapeItemBase {
+  type: 'star';
+  /** Star alternates two radii; polygon uses the outer one only. */
+  star: boolean;
+  points: Property<number>;
+  position: Property<Vec2>;
+  rotation: Property<number>;
+  outerRadius: Property<number>;
+  innerRadius: Property<number>;
+}
+
+export interface PathShape extends ShapeItemBase {
+  type: 'path';
+  path: Property<BezierPath>;
+}
+
+export type FillRule = 'nonzero' | 'evenodd';
+
+export interface FillStyle extends ShapeItemBase {
+  type: 'fill';
+  color: Property<RGBA>;
+  opacity: Property<number>;
+  rule: FillRule;
+}
+
+export interface StrokeStyle extends ShapeItemBase {
+  type: 'stroke';
+  color: Property<RGBA>;
+  opacity: Property<number>;
+  width: Property<number>;
+  cap: 'butt' | 'round' | 'square';
+  join: 'miter' | 'round' | 'bevel';
+  dashes: Property<Vec2>;
+}
+
+export interface TrimPathsModifier extends ShapeItemBase {
+  type: 'trim';
+  start: Property<number>;
+  end: Property<number>;
+  offset: Property<number>;
+  /** Trim every path as one outline, or each path separately. */
+  multipleShapes: boolean;
+}
+
+export interface RepeaterModifier extends ShapeItemBase {
+  type: 'repeater';
+  copies: Property<number>;
+  offset: Property<number>;
+  transform: ShapeTransform;
+  /** Opacity of the first and last copy, blended across the repeats. */
+  startOpacity: Property<number>;
+  endOpacity: Property<number>;
+}
+
+export interface OffsetPathsModifier extends ShapeItemBase {
+  type: 'offset';
+  amount: Property<number>;
+}
+
+export interface ShapeGroup extends ShapeItemBase {
+  type: 'group';
+  items: ShapeItem[];
+  transform: ShapeTransform;
+}
+
+export type ShapeItem =
+  | ShapeGroup | RectShape | EllipseShape | StarShape | PathShape
+  | FillStyle | StrokeStyle | TrimPathsModifier | RepeaterModifier | OffsetPathsModifier;
+
+export interface ShapeLayer extends LayerBase {
+  type: 'shape';
+  contents: ShapeItem[];
+}
+
+export type Layer =
+  | SolidLayer | NullLayer | AdjustmentLayer | TextLayer | ShapeLayer;
 
 export interface Marker {
   id: Id;
@@ -247,6 +426,19 @@ export const LABEL_COLORS = [
   '#9d9d9d', '#ec4b4b', '#e8e14b', '#a3e84b', '#4be8c8', '#4b9de8',
   '#8f4be8', '#e84bc8', '#e8a04b', '#4be86a', '#7a7ae8', '#c8e84b',
   '#e86a4b', '#4bc8e8', '#b0e84b', '#e84b8f',
+];
+
+export const MASK_MODES: MaskMode[] = [
+  'none', 'add', 'subtract', 'intersect', 'lighten', 'darken', 'difference',
+];
+
+export const TRACK_MATTE_TYPES: TrackMatteType[] = [
+  'none', 'alpha', 'alpha-inverted', 'luma', 'luma-inverted',
+];
+
+/** Outline colours cycled through as masks are added to a layer. */
+export const MASK_COLORS = [
+  '#ffd24a', '#5ae08a', '#6fa8ff', '#e2685d', '#c58ae6', '#7bd1e6',
 ];
 
 export const BLEND_MODES: BlendMode[] = [

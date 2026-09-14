@@ -99,7 +99,7 @@ export function App() {
       <div className="status-bar">
         <span>{status ?? 'Ready'}</span>
         <span style={{ flex: 1 }} />
-        <span>Phase 2 — graph editor, easing library, full keyframe model</span>
+        <span>Phase 3 — masks, shapes, text animators, track mattes</span>
       </div>
 
       {dialog === 'compSettings' && <CompSettingsDialog onClose={() => store.openDialog(null)} />}

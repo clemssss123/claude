@@ -1,10 +1,12 @@
 import { findLayer } from '@/core/composition';
 import { valueAtTime } from '@/core/property';
-import { BLEND_MODES, LABEL_COLORS } from '@/core/types';
+import { BLEND_MODES, LABEL_COLORS, MASK_MODES, TRACK_MATTE_TYPES } from '@/core/types';
 import { blendModeLabel } from '@/render/blendMode';
 import { useEditor } from '@/state/store';
 import { ScrubbableNumber } from '@/ui/components/ScrubbableNumber';
-import type { AnyProperty, BlendMode, Composition, Id } from '@/core/types';
+import type {
+  AnyProperty, BlendMode, Composition, Id, MaskMode, TrackMatteType,
+} from '@/core/types';
 import type { TimelineRow } from './timelineRows';
 import { ROW_HEIGHT } from './timelineRows';
 
@@ -17,6 +19,9 @@ interface Props {
   scrollRef: React.RefObject<HTMLDivElement>;
 }
 
+/** Indentation per outline level, in pixels. */
+const INDENT = 14;
+
 export function LayerOutline({ comp, rows, time, selectedLayerIds, onScroll, scrollRef }: Props) {
   return (
     <div
@@ -24,7 +29,7 @@ export function LayerOutline({ comp, rows, time, selectedLayerIds, onScroll, scr
       ref={scrollRef}
       onScroll={(e) => onScroll((e.target as HTMLDivElement).scrollTop)}
     >
-      {rows.map((row, index) => {
+      {rows.map((row) => {
         if (row.kind === 'layer') {
           return (
             <LayerRow
@@ -37,18 +42,15 @@ export function LayerOutline({ comp, rows, time, selectedLayerIds, onScroll, scr
           );
         }
         if (row.kind === 'group') {
-          return (
-            <div className="prop-row" key={`g${row.layerId}${index}`} style={{ paddingLeft: 18 }}>
-              <span className="prop-name" style={{ color: 'var(--text)' }}>▾ {row.name}</span>
-            </div>
-          );
+          return <GroupRow key={row.key} row={row} />;
         }
         return (
           <PropertyRow
-            key={`p${row.layerId}${row.path}`}
+            key={row.key}
             layerId={row.layerId}
             path={row.path}
             property={row.property}
+            depth={row.depth}
             time={time}
           />
         );
@@ -76,6 +78,8 @@ function LayerRow({ comp, layerId, index, selected }: {
     </button>
   );
 
+  const hasLayerAbove = index > 1;
+
   return (
     <div
       className={`layer-row ${selected ? 'selected' : ''}`}
@@ -102,12 +106,26 @@ function LayerRow({ comp, layerId, index, selected }: {
       <select
         value={layer.blendMode}
         title="Blend mode"
-        style={{ maxWidth: 92 }}
+        style={{ maxWidth: 84 }}
         onPointerDown={(e) => e.stopPropagation()}
         onChange={(e) => store.setBlendMode(layerId, e.target.value as BlendMode)}
       >
         {BLEND_MODES.map((mode) => (
           <option key={mode} value={mode}>{blendModeLabel(mode)}</option>
+        ))}
+      </select>
+      <select
+        value={layer.trackMatte}
+        title={hasLayerAbove
+          ? 'Track matte — uses the layer above'
+          : 'Track matte needs a layer above this one'}
+        style={{ maxWidth: 84 }}
+        disabled={!hasLayerAbove}
+        onPointerDown={(e) => e.stopPropagation()}
+        onChange={(e) => store.setTrackMatte(layerId, e.target.value as TrackMatteType)}
+      >
+        {TRACK_MATTE_TYPES.map((type) => (
+          <option key={type} value={type}>{TRACK_MATTE_LABELS[type]}</option>
         ))}
       </select>
       <select
@@ -134,14 +152,197 @@ const SWITCH_GLYPH: Record<string, string> = {
   motionBlur: 'M',
 };
 
+const TRACK_MATTE_LABELS: Record<TrackMatteType, string> = {
+  none: 'No Matte',
+  alpha: 'Alpha',
+  'alpha-inverted': 'Alpha Inv.',
+  luma: 'Luma',
+  'luma-inverted': 'Luma Inv.',
+};
+
+/** Group header row: Masks, a single mask, a shape item, a text animator… */
+function GroupRow({ row }: { row: Extract<TimelineRow, { kind: 'group' }> }) {
+  const project = useEditor((s) => s.project);
+  const comp = project.compositions.find((c) => c.id === project.activeCompId);
+  const layer = comp && findLayer(comp, row.layerId);
+  const target = row.target;
+
+  const maskIndex = target?.type === 'mask' ? Number(target.path.split('.')[1]) : -1;
+  const mask = layer && maskIndex >= 0 ? layer.masks[maskIndex] : undefined;
+  const animatorIndex = target?.type === 'animator' ? Number(target.path.split('.')[1]) : -1;
+  const animator = layer?.type === 'text' && animatorIndex >= 0
+    ? layer.animators[animatorIndex] : undefined;
+  const selectorParts = target?.type === 'selector' ? target.path.split('.') : null;
+
+  return (
+    <div className="prop-row group-row" style={{ height: ROW_HEIGHT, paddingLeft: 8 + row.depth * INDENT }}>
+      {mask && (
+        <span
+          className="mask-swatch"
+          style={{ background: mask.color }}
+          title="Mask colour in the viewer"
+        />
+      )}
+      <span className="prop-name group-name">▾ {row.name}</span>
+
+      {mask && (
+        <>
+          <select
+            value={mask.mode}
+            title="Mask mode"
+            onChange={(e) => useEditor.getState().updateMask(row.layerId, maskIndex, {
+              mode: e.target.value as MaskMode,
+            })}
+          >
+            {MASK_MODES.map((mode) => (
+              <option key={mode} value={mode}>
+                {mode.charAt(0).toUpperCase() + mode.slice(1)}
+              </option>
+            ))}
+          </select>
+          <label className="inline-check" title="Invert this mask">
+            <input
+              type="checkbox"
+              checked={mask.inverted}
+              onChange={() => useEditor.getState().updateMask(row.layerId, maskIndex, {
+                inverted: !mask.inverted,
+              })}
+            />
+            Inverted
+          </label>
+          <button
+            className="icon"
+            title="Delete mask"
+            onClick={() => useEditor.getState().deleteMask(row.layerId, maskIndex)}
+          >
+            ✕
+          </button>
+        </>
+      )}
+
+      {animator && (
+        <>
+          <select
+            value=""
+            title="Add a property to this animator"
+            onChange={(e) => {
+              if (!e.target.value) return;
+              useEditor.getState().toggleAnimatorProperty(
+                row.layerId, animatorIndex,
+                e.target.value as 'position' | 'scale' | 'rotation' | 'opacity' | 'tracking' | 'fillColor',
+              );
+            }}
+          >
+            <option value="">Add ▾</option>
+            {(['position', 'scale', 'rotation', 'opacity', 'tracking', 'fillColor'] as const).map((key) => (
+              <option key={key} value={key}>
+                {animator.properties.enabled[key] ? `✓ ${PROPERTY_LABELS[key]}` : PROPERTY_LABELS[key]}
+              </option>
+            ))}
+          </select>
+          <button
+            className="icon"
+            title="Add a range selector"
+            onClick={() => useEditor.getState().addRangeSelector(row.layerId, animatorIndex)}
+          >
+            + Selector
+          </button>
+        </>
+      )}
+
+      {selectorParts && animatorForSelector(layer, selectorParts) && (
+        <SelectorOptions layerId={row.layerId} parts={selectorParts} />
+      )}
+
+      {row.key.endsWith(':contents') && (
+        <select
+          value=""
+          title="Add a shape item to this layer"
+          onChange={(e) => {
+            if (!e.target.value) return;
+            useEditor.getState().addShapeItem(
+              row.layerId,
+              e.target.value as 'fill' | 'stroke' | 'trim' | 'repeater' | 'offset',
+            );
+            e.target.value = '';
+          }}
+        >
+          <option value="">Add ▾</option>
+          <option value="fill">Fill</option>
+          <option value="stroke">Stroke</option>
+          <option value="trim">Trim Paths</option>
+          <option value="repeater">Repeater</option>
+          <option value="offset">Offset Paths</option>
+        </select>
+      )}
+
+      {target?.type === 'shape' && (
+        <button
+          className="icon"
+          title="Delete shape item"
+          onClick={() => useEditor.getState().removeShapeItem(row.layerId, target.path)}
+        >
+          ✕
+        </button>
+      )}
+    </div>
+  );
+}
+
+const PROPERTY_LABELS: Record<string, string> = {
+  position: 'Position',
+  scale: 'Scale',
+  rotation: 'Rotation',
+  opacity: 'Opacity',
+  tracking: 'Tracking',
+  fillColor: 'Fill Color',
+};
+
+function animatorForSelector(layer: ReturnType<typeof findLayer>, parts: string[]) {
+  if (!layer || layer.type !== 'text') return undefined;
+  return layer.animators[Number(parts[1])]?.selectors[Number(parts[3])];
+}
+
+function SelectorOptions({ layerId, parts }: { layerId: Id; parts: string[] }) {
+  const project = useEditor((s) => s.project);
+  const comp = project.compositions.find((c) => c.id === project.activeCompId);
+  const layer = comp && findLayer(comp, layerId);
+  const selector = animatorForSelector(layer, parts);
+  if (!selector) return null;
+
+  const animatorIndex = Number(parts[1]);
+  const selectorIndex = Number(parts[3]);
+  const set = (patch: { shape?: string; units?: string; mode?: string }) => (
+    useEditor.getState().setSelectorOption(layerId, animatorIndex, selectorIndex, patch)
+  );
+
+  return (
+    <>
+      <select value={selector.shape} title="Falloff shape" onChange={(e) => set({ shape: e.target.value })}>
+        {['square', 'ramp-up', 'ramp-down', 'triangle', 'round', 'smooth'].map((shape) => (
+          <option key={shape} value={shape}>{shape}</option>
+        ))}
+      </select>
+      <select value={selector.units} title="Units" onChange={(e) => set({ units: e.target.value })}>
+        <option value="percent">%</option>
+        <option value="index">index</option>
+      </select>
+      <select value={selector.mode} title="Mode" onChange={(e) => set({ mode: e.target.value })}>
+        <option value="add">Add</option>
+        <option value="subtract">Subtract</option>
+      </select>
+    </>
+  );
+}
+
 /** "transform.position.dimensions.0" -> "transform.position", else null. */
 function parentVectorPath(path: string): string | null {
   const match = /^(.*)\.dimensions\.\d+$/.exec(path);
   return match ? match[1] : null;
 }
 
-function PropertyRow({ layerId, path, property, time }: {
-  layerId: Id; path: string; property: AnyProperty; time: number;
+function PropertyRow({ layerId, path, property, depth, time }: {
+  layerId: Id; path: string; property: AnyProperty; depth: number; time: number;
 }) {
   const store = useEditor.getState();
   const selected = useEditor((s) => s.selectedProperties.some(
@@ -151,12 +352,14 @@ function PropertyRow({ layerId, path, property, time }: {
   const hasKeyAtTime = property.animated
     && property.keyframes.some((k) => Math.abs(k.time - time) < 1e-6);
 
-  // The separate/merge toggle belongs to the vector, so it is shown on the
-  // vector's own row or on the first of its split dimensions.
   const vectorPath = parentVectorPath(path);
   const separated = vectorPath !== null;
   const showSeparateToggle = property.spatial || (separated && path.endsWith('.0'));
   const togglePath = vectorPath ?? path;
+
+  const components = property.kind === 'path'
+    ? null
+    : (Array.isArray(value) ? value : [value as number]);
 
   const setComponent = (index: number, next: number, phase: 'drag' | 'commit') => {
     const current = valueAtTime(property, time);
@@ -170,10 +373,11 @@ function PropertyRow({ layerId, path, property, time }: {
     );
   };
 
-  const components = Array.isArray(value) ? value : [value as number];
-
   return (
-    <div className={`prop-row ${selected ? 'selected' : ''}`} style={{ height: ROW_HEIGHT }}>
+    <div
+      className={`prop-row ${selected ? 'selected' : ''}`}
+      style={{ height: ROW_HEIGHT, paddingLeft: 8 + depth * INDENT }}
+    >
       <button
         className={`stopwatch ${property.animated ? 'on' : ''}`}
         title="Toggle animation (stopwatch)"
@@ -201,7 +405,12 @@ function PropertyRow({ layerId, path, property, time }: {
         </button>
       )}
       <div className="prop-value">
-        {components.map((component, i) => (
+        {components === null && (
+          <span className="shape-value" title="Edit the path in the Composition panel">
+            Shape
+          </span>
+        )}
+        {components?.map((component, i) => (
           <ScrubbableNumber
             // eslint-disable-next-line react/no-array-index-key
             key={i}

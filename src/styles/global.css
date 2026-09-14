@@ -176,9 +176,25 @@ input:focus, select:focus { outline: 1px solid var(--accent); }
 .viewer-footer .timecode { font: var(--mono); color: var(--text-bright); }
 
 /* -- timeline ----------------------------------------------------------- */
-.timeline { display: grid; grid-template-columns: var(--outline-width, 380px) 5px 1fr; min-height: 0; }
-.timeline-outline { display: flex; flex-direction: column; min-width: 0; background: var(--bg-panel); }
-.timeline-tracks { position: relative; overflow: hidden; background: var(--bg-panel-alt); }
+.timeline {
+  display: grid;
+  grid-template-columns: var(--outline-width, 380px) 5px 1fr;
+  /* One row that can shrink: without minmax(0, …) the row grows to its
+     content and the outline pushes the whole app past the viewport. */
+  grid-template-rows: minmax(0, 1fr);
+  min-height: 0;
+}
+.timeline-outline {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: var(--bg-panel);
+}
+/* The outline is its own scroll container; without this the rows grow the
+   whole app past the viewport. */
+.timeline-outline > .body { flex: 1; min-height: 0; overflow: auto; }
+.timeline-tracks { position: relative; overflow: hidden; min-height: 0; background: var(--bg-panel-alt); }
 
 .tl-head {
   display: flex;
@@ -476,3 +492,38 @@ input:focus, select:focus { outline: 1px solid var(--accent); }
   color: var(--text-dim);
 }
 .sep-dimensions.on { color: var(--accent); }
+
+/* -- outline groups, masks and shapes ------------------------------------ */
+.prop-row.group-row { background: #242424; gap: 6px; }
+.group-name { color: var(--text) !important; width: auto !important; min-width: 96px; }
+.mask-swatch {
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  border: 1px solid rgba(0, 0, 0, 0.5);
+  flex: none;
+}
+.inline-check {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+.inline-check input { margin: 0; }
+.shape-value {
+  color: var(--text-dim);
+  font-style: italic;
+}
+.prop-row select { max-width: 104px; }
+.pen-hint {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  padding: 4px 8px;
+  border-radius: 3px;
+  background: rgba(20, 20, 20, 0.85);
+  border: 1px solid var(--border-soft);
+  color: var(--text);
+  pointer-events: none;
+}

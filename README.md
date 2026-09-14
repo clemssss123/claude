@@ -1,7 +1,7 @@
 # Keyframe Studio
 
 A browser-based 2D motion graphics compositor modeled on Adobe After Effects.
-TypeScript + React, no 3D. Built in phases; this repository is at **phase 2**.
+TypeScript + React, no 3D. Built in phases; this repository is at **phase 3**.
 
 ```bash
 npm install
@@ -26,16 +26,24 @@ normalized speed curve, as AE does before dimensions are separated.
 composes transforms up the chain (opacity and blend modes deliberately do not
 inherit) with cycle detection.
 
-**Composition viewer** — Canvas2D render of solids and text with per-layer blend
-modes, resolution (full/half/quarter), transparency grid, selection box with
-scale handles, anchor-point marker, motion path for animated position, and
-direct manipulation: move, scale from handles, rotate (W), pan-behind (Y), hand
-(H), zoom (Z). Shift constrains.
+**Composition viewer** — Canvas2D render of solids, text and shape layers with
+per-layer blend modes, masks and track mattes, resolution (full/half/quarter),
+transparency grid, selection box with scale handles, anchor-point marker,
+motion path for animated position, and direct manipulation: move, scale from
+handles, rotate (W), pan-behind (Y), hand (H), zoom (Z), pen (G), rectangle and
+ellipse (Q). Shift constrains.
+
+Layers that need no masking or matting composite straight onto the frame;
+anything else goes through a scratch buffer first, because a mask or a matte
+has to change the layer's alpha before it meets the frame.
 
 **Timeline** — layer stack with label colours, eye/solo/lock/shy/motion-blur
 switches, blend mode and parent pickers, twirl-down property rows with
-scrubbable values, stopwatches, keyframe navigators, and a separate-dimensions
-toggle on Position. The track area is
+scrubbable values, stopwatches, keyframe navigators, a track-matte column, and
+a separate-dimensions toggle on Position. The property tree nests properly:
+Text animators, shape Contents, Masks and Transform, each with the controls
+that belong to it — mask mode and inversion, animator property and selector
+menus, shape item add and delete. The track area is
 canvas-drawn: ruler with timecode, work area bar with draggable ends, layer
 bars you can slide and trim from either edge, keyframes you can click,
 shift-click, marquee-select, drag (frame-snapped) and right-click for
@@ -51,24 +59,30 @@ Keyframe Velocity (Ctrl+Shift+K) and Keyframe Interpolation (Ctrl+Alt+K)
 dialogs edit the same handles numerically.
 
 **Keyboard** — the After Effects keymap lives in one table
-(`src/input/shortcuts.ts`). 77 of 91 bindings are live; the rest are registered
+(`src/input/shortcuts.ts`). 88 of 95 bindings are live; the rest are registered
 against their real AE chord and shown greyed out with the phase that implements
 them. Press **F1** for the list. Double-tap chords (UU/MM/EE) are handled.
 
 ## What is not built yet
 
-Phases 3–7 from the plan: masks and shape layers, text animators (text bounds
-are currently estimated from font metrics rather than measured), track mattes,
-adjustment-layer rendering, the effect engine and its 50–100 effects, motion
-blur rendering (settings are stored and editable now), expressions, precomps,
-time remapping, and WebCodecs export. Anything in the UI that is not yet real
-says so rather than pretending.
+Phases 4–7 from the plan: the effect engine and its 50–100 effects,
+adjustment-layer rendering, motion blur rendering (settings are stored and
+editable now), expressions, precomps, time remapping, and WebCodecs export.
+
+Within phase 3's areas, three things are deliberately not built: variable-width
+mask feather (per-point feather geometry), Merge Paths on shape layers, and
+keyframing of a text layer's source string. Offset Paths uses a flattened
+polyline offset rather than a true Minkowski offset, which is accurate for the
+gentle offsets shape layers usually want but does not remove
+self-intersections. Anything in the UI that is not yet real says so rather than
+pretending.
 
 ## Layout
 
 ```
-src/core/     document model, interpolation, easings, motion paths — no React
-src/render/   Canvas2D compositor, blend modes, hit testing
+src/core/     document model, paths, shapes, text, interpolation, easings,
+              motion paths — no React, no DOM
+src/render/   Canvas2D compositor: buffers, masks, mattes, hit testing
 src/state/    zustand store, undo history, playback transport
 src/input/    After Effects keymap and the global key handler
 src/ui/       panels, dialogs and shared controls

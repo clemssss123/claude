@@ -7,9 +7,10 @@ const TOOLS: { id: Tool; glyph: string; label: string; chord: string; ready: boo
   { id: 'zoom', glyph: '🔍', label: 'Zoom', chord: 'Z', ready: true },
   { id: 'rotation', glyph: '↻', label: 'Rotation', chord: 'W', ready: true },
   { id: 'anchor', glyph: '⌖', label: 'Pan Behind (Anchor Point)', chord: 'Y', ready: true },
-  { id: 'pen', glyph: '✒', label: 'Pen — phase 3', chord: 'G', ready: false },
-  { id: 'text', glyph: 'T', label: 'Type — phase 3', chord: 'Ctrl+T', ready: false },
-  { id: 'shape', glyph: '▭', label: 'Shape — phase 3', chord: 'Q', ready: false },
+  { id: 'pen', glyph: '✒', label: 'Pen — click to place points, click the first to close', chord: 'G', ready: true },
+  { id: 'rect', glyph: '▭', label: 'Rectangle — drag to mask the selected layer, or to make a shape layer', chord: 'Q', ready: true },
+  { id: 'ellipse', glyph: '◯', label: 'Ellipse — drag to mask the selected layer, or to make a shape layer', chord: 'Q', ready: true },
+  { id: 'text', glyph: 'T', label: 'Type', chord: 'Ctrl+T', ready: true },
 ];
 
 export function Toolbar() {
@@ -35,6 +36,7 @@ export function Toolbar() {
       <button title="New Text Layer (Ctrl+Alt+Shift+T)" onClick={() => store.addText('Text')}>Text</button>
       <button title="New Null Object (Ctrl+Alt+Shift+Y)" onClick={() => store.addNull()}>Null</button>
       <button title="New Adjustment Layer (Ctrl+Alt+Y)" onClick={() => store.addAdjustment()}>Adjustment</button>
+      <button title="New Shape Layer with a rectangle" onClick={() => store.addShapeLayer('rect')}>Shape</button>
       <div className="sep" />
       <button title="Duplicate (Ctrl+D)" onClick={() => store.duplicateSelected()}>Duplicate</button>
       <button title="Delete (Delete)" onClick={() => store.deleteSelected()}>Delete</button>

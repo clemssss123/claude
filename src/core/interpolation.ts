@@ -1,4 +1,5 @@
 import { cubicBezierEase } from './bezier';
+import { interpolatePaths, isBezierPath, pathDelta } from './path';
 import type {
   Ease, InterpolationType, Keyframe, PropertyValue, RGBA, TangentMode, Vec2,
 } from './types';
@@ -29,6 +30,9 @@ export function lerpValue<T extends PropertyValue>(from: T, to: T, t: number): T
   if (typeof from === 'number' && typeof to === 'number') {
     return (from + (to - from) * t) as T;
   }
+  if (isBezierPath(from) && isBezierPath(to)) {
+    return interpolatePaths(from, to, t) as T;
+  }
   const a = from as number[];
   const b = to as number[];
   const out = new Array(a.length);
@@ -44,6 +48,7 @@ export function lerpValue<T extends PropertyValue>(from: T, to: T, t: number): T
  */
 export function valueDelta(from: PropertyValue, to: PropertyValue): number {
   if (typeof from === 'number' && typeof to === 'number') return to - from;
+  if (isBezierPath(from) && isBezierPath(to)) return pathDelta(from, to);
   const a = from as number[];
   const b = to as number[];
   let sum = 0;

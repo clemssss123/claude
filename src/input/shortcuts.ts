@@ -293,24 +293,32 @@ export const SHORTCUTS: Shortcut[] = [
     label: 'Reveal mask path',
     keys: ['m'],
     category: 'Reveal',
-    status: 'planned',
-    phase: 3,
+    status: 'ready',
+    run: (s) => s.revealProperties('m', false),
   },
   {
     id: 'reveal.maskAll',
     label: 'Reveal all mask properties',
     keys: ['mm'],
     category: 'Reveal',
-    status: 'planned',
-    phase: 3,
+    status: 'ready',
+    run: (s) => s.revealProperties('mm', false),
   },
   {
     id: 'reveal.maskFeather',
     label: 'Reveal mask feather',
     keys: ['f'],
     category: 'Reveal',
-    status: 'planned',
-    phase: 3,
+    status: 'ready',
+    run: (s) => s.revealProperties('f', false),
+  },
+  {
+    id: 'reveal.maskOpacity',
+    label: 'Reveal mask opacity',
+    keys: ['tt'],
+    category: 'Reveal',
+    status: 'ready',
+    run: (s) => s.revealProperties('tt', false),
   },
   {
     id: 'reveal.audioLevels',
@@ -559,8 +567,36 @@ export const SHORTCUTS: Shortcut[] = [
     label: 'Split layer at current time',
     keys: ['ctrl+shift+d'],
     category: 'Layer',
-    status: 'planned',
-    phase: 3,
+    status: 'ready',
+    run: (s) => s.splitLayer(),
+  },
+  {
+    id: 'layer.newShape',
+    label: 'New Shape Layer',
+    keys: ['ctrl+alt+shift+s'],
+    category: 'Layer',
+    status: 'ready',
+    run: (s) => s.addShapeLayer('rect'),
+  },
+  {
+    id: 'mask.newRect',
+    label: 'New rectangular mask on the selected layers',
+    keys: ['ctrl+shift+n'],
+    category: 'Mask',
+    status: 'ready',
+    run: (s) => {
+      for (const id of s.selectedLayerIds) s.addMask(id, 'rect');
+    },
+  },
+  {
+    id: 'text.addAnimator',
+    label: 'Add a text animator to the selected text layer',
+    keys: ['ctrl+alt+shift+a'],
+    category: 'Text',
+    status: 'ready',
+    run: (s) => {
+      for (const id of s.selectedLayerIds) s.addTextAnimator(id);
+    },
   },
   {
     id: 'layer.precompose',
@@ -685,9 +721,16 @@ export const SHORTCUTS: Shortcut[] = [
   { id: 'tool.zoom', label: 'Zoom tool', keys: ['z'], category: 'Tools', status: 'ready', run: (s) => s.setTool('zoom') },
   { id: 'tool.rotation', label: 'Rotation tool', keys: ['w'], category: 'Tools', status: 'ready', run: (s) => s.setTool('rotation') },
   { id: 'tool.anchor', label: 'Pan Behind (anchor point) tool', keys: ['y'], category: 'Tools', status: 'ready', run: (s) => s.setTool('anchor') },
-  { id: 'tool.pen', label: 'Pen tool', keys: ['g'], category: 'Tools', status: 'planned', phase: 3 },
-  { id: 'tool.text', label: 'Type tool', keys: ['ctrl+t'], category: 'Tools', status: 'planned', phase: 3 },
-  { id: 'tool.shape', label: 'Shape tool', keys: ['q'], category: 'Tools', status: 'planned', phase: 3 },
+  { id: 'tool.pen', label: 'Pen tool', keys: ['g'], category: 'Tools', status: 'ready', run: (s) => s.setTool('pen') },
+  { id: 'tool.text', label: 'Type tool', keys: ['ctrl+t'], category: 'Tools', status: 'ready', run: (s) => s.setTool('text') },
+  {
+    id: 'tool.shape',
+    label: 'Shape tool (press again to cycle rectangle / ellipse)',
+    keys: ['q'],
+    category: 'Tools',
+    status: 'ready',
+    run: (s) => s.setTool(s.tool === 'rect' ? 'ellipse' : 'rect'),
+  },
 ];
 
 /** P / A / S / R / T reveal, their Shift+ additive forms and Alt+Shift+ keyframe forms. */

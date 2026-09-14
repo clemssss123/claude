@@ -2,6 +2,7 @@ import {
   defaultEase, easeFromCubicBezier, evaluateKeyframes, segmentControlPoints,
   upperBound, valueDelta,
 } from './interpolation';
+import { isBezierPath } from './path';
 import { uid } from './uid';
 import type {
   AnyProperty, Keyframe, Property, PropertyKind, PropertyValue, RGBA, Vec2,
@@ -40,6 +41,7 @@ export function createProperty<T extends PropertyValue>(
 
 export function clampToRange(prop: Property, value: PropertyValue): PropertyValue {
   if (prop.min === undefined && prop.max === undefined) return value;
+  if (isBezierPath(value)) return value;
   const lo = prop.min ?? -Infinity;
   const hi = prop.max ?? Infinity;
   if (typeof value === 'number') return Math.min(hi, Math.max(lo, value));
@@ -225,6 +227,7 @@ export function isColorProperty(prop: Property): prop is Property<RGBA> {
 
 /** Human-readable value for the timeline and Info panel. */
 export function formatValue(prop: Property, value: PropertyValue): string {
+  if (isBezierPath(value)) return `Shape (${value.vertices.length} vertices)`;
   const unit = prop.unit ?? '';
   if (typeof value === 'number') {
     return `${round(value)}${unit}`;

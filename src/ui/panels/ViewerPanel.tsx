@@ -6,6 +6,8 @@ import type { Matrix } from '@/core/matrix';
 import { activeComposition } from '@/core/project';
 import { valueAtTime } from '@/core/property';
 import { formatTimecode } from '@/core/time';
+import { clonePath, pathSegments, transformPath, vertex } from '@/core/path';
+import type { BezierPath } from '@/core/path';
 import { motionPathPoints, spatialInTangent, spatialOutTangent } from '@/core/spatial';
 import { hitTestLayers } from '@/render/hit';
 import { renderComposition } from '@/render/renderer';
@@ -26,7 +28,13 @@ type DragMode =
   | {
       kind: 'spatial'; ref: KeyframeRef; side: 'in' | 'out';
       keyValue: Vec2; inverseParent: Matrix;
-    };
+    }
+  | {
+      kind: 'maskVertex'; layerId: string; maskIndex: number; vertexIndex: number;
+      part: 'point' | 'inTangent' | 'outTangent'; basePath: BezierPath; inverseWorld: Matrix;
+      origin: Vec2;
+    }
+  | { kind: 'create'; shape: 'rect' | 'ellipse'; origin: Vec2; current: Vec2 };
 
 const HANDLE_SIZE = 7;
 
@@ -44,6 +52,8 @@ export function ViewerPanel() {
   const [stage, setStage] = useState({ width: 800, height: 450 });
   const drag = useRef<DragMode>({ kind: 'none' });
   const spaceHeld = useRef(false);
+  const [penPoints, setPenPoints] = useState<Vec2[]>([]);
+  const [creating, setCreating] = useState<{ shape: 'rect' | 'ellipse'; a: Vec2; b: Vec2 } | null>(null);
 
   // Track the stage size so "fit" stays correct while panels are resized.
   useLayoutEffect(() => {
@@ -69,6 +79,23 @@ export function ViewerPanel() {
       window.removeEventListener('keyup', up);
     };
   }, []);
+
+  // Enter finishes an open pen path; Escape abandons it.
+  useEffect(() => {
+    if (penPoints.length === 0) return undefined;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setPenPoints([]);
+        e.preventDefault();
+      } else if (e.key === 'Enter' && comp) {
+        commitPenPath(comp, penPoints, false);
+        setPenPoints([]);
+        e.preventDefault();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [penPoints, comp]);
 
   const fitZoom = useMemo(() => {
     if (!comp) return 1;
@@ -135,7 +162,18 @@ export function ViewerPanel() {
       const layer = findLayer(comp, id);
       if (layer) drawSelection(ctx, comp, layer, time, toScreen);
     }
-  }, [comp, project, time, stage, selectedLayerIds, toScreen, viewer.showGuides]);
+
+    for (const id of selectedLayerIds) {
+      const layer = findLayer(comp, id);
+      if (layer) drawMasks(ctx, comp, layer, time, toScreen);
+    }
+
+    if (penPoints.length > 0) drawPenPreview(ctx, penPoints, toScreen);
+    if (creating) drawCreationPreview(ctx, creating, toScreen);
+  }, [
+    comp, project, time, stage, selectedLayerIds, toScreen, viewer.showGuides,
+    penPoints, creating,
+  ]);
 
   // -- interaction --------------------------------------------------------
   const onPointerDown = (e: React.PointerEvent) => {
@@ -143,6 +181,42 @@ export function ViewerPanel() {
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
     const state = useEditor.getState();
     const point = toComp(e.clientX, e.clientY);
+
+    // The pen builds a path click by click; clicking the first point closes it.
+    if (tool === 'pen' && e.button === 0) {
+      if (penPoints.length > 2) {
+        const first = penPoints[0];
+        if (Math.hypot(first[0] - point[0], first[1] - point[1]) * zoom <= 9) {
+          commitPenPath(comp, penPoints, true);
+          setPenPoints([]);
+          return;
+        }
+      }
+      setPenPoints([...penPoints, point]);
+      return;
+    }
+
+    if ((tool === 'rect' || tool === 'ellipse') && e.button === 0) {
+      drag.current = { kind: 'create', shape: tool, origin: point, current: point };
+      setCreating({ shape: tool, a: point, b: point });
+      return;
+    }
+
+    // Mask vertices and their tangents take priority on a selected layer.
+    const maskHit = findMaskHandle(comp, selectedLayerIds, point, time, zoom);
+    if (maskHit && tool === 'selection') {
+      drag.current = {
+        kind: 'maskVertex',
+        layerId: maskHit.layerId,
+        maskIndex: maskHit.maskIndex,
+        vertexIndex: maskHit.vertexIndex,
+        part: maskHit.part,
+        basePath: clonePath(maskHit.path),
+        inverseWorld: invert(maskHit.world),
+        origin: point,
+      };
+      return;
+    }
 
     const panning = tool === 'hand' || spaceHeld.current || e.button === 1;
     if (panning) {
@@ -296,6 +370,48 @@ export function ViewerPanel() {
         break;
       }
 
+      case 'create': {
+        drag.current = { ...mode, current: point };
+        setCreating({ shape: mode.shape, a: mode.origin, b: point });
+        break;
+      }
+
+      case 'maskVertex': {
+        const local = applyToPoint(mode.inverseWorld, point);
+        const originLocal = applyToPoint(mode.inverseWorld, mode.origin);
+        const dx = local[0] - originLocal[0];
+        const dy = local[1] - originLocal[1];
+        const next = clonePath(mode.basePath);
+        const target = next.vertices[mode.vertexIndex];
+        if (target) {
+          if (mode.part === 'point') {
+            target.point = [target.point[0] + dx, target.point[1] + dy];
+          } else {
+            const handle = target[mode.part];
+            const moved: Vec2 = [handle[0] + dx, handle[1] + dy];
+            target[mode.part] = moved;
+            // Handles stay collinear unless Alt breaks them, as in AE.
+            if (!e.altKey) {
+              const opposite = mode.part === 'inTangent' ? 'outTangent' : 'inTangent';
+              const current = target[opposite];
+              const length = Math.hypot(current[0], current[1]);
+              const dragged = Math.hypot(moved[0], moved[1]);
+              if (dragged > 1e-6 && length > 1e-6) {
+                target[opposite] = [
+                  (-moved[0] / dragged) * length,
+                  (-moved[1] / dragged) * length,
+                ];
+              }
+            }
+          }
+          state.setMaskPath(
+            mode.layerId, mode.maskIndex, next,
+            `viewer:mask:${mode.layerId}:${mode.maskIndex}`,
+          );
+        }
+        break;
+      }
+
       case 'spatial': {
         const local = applyToPoint(mode.inverseParent, point);
         state.setSpatialTangent(
@@ -339,8 +455,21 @@ export function ViewerPanel() {
   };
 
   const onPointerUp = (e: React.PointerEvent) => {
+    const mode = drag.current;
     (e.target as HTMLElement).releasePointerCapture?.(e.pointerId);
     drag.current = { kind: 'none' };
+
+    if (mode.kind === 'create' && comp) {
+      const { origin, current } = mode;
+      const size: Vec2 = [Math.abs(current[0] - origin[0]), Math.abs(current[1] - origin[1])];
+      setCreating(null);
+      if (size[0] < 2 || size[1] < 2) return;
+      const centre: Vec2 = [
+        (origin[0] + current[0]) / 2,
+        (origin[1] + current[1]) / 2,
+      ];
+      commitDrawnShape(comp, mode.shape, centre, size);
+    }
   };
 
   const onWheel = (e: React.WheelEvent) => {
@@ -385,7 +514,12 @@ export function ViewerPanel() {
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onWheel={onWheel}
-        style={{ cursor: tool === 'hand' ? 'grab' : tool === 'zoom' ? 'zoom-in' : 'default' }}
+        style={{
+          cursor: tool === 'hand' ? 'grab'
+            : tool === 'zoom' ? 'zoom-in'
+              : tool === 'pen' || tool === 'rect' || tool === 'ellipse' ? 'crosshair'
+                : 'default',
+        }}
       >
         <div
           className="viewer-canvas-wrap"
@@ -406,6 +540,13 @@ export function ViewerPanel() {
           ref={overlayRef}
           style={{ width: stage.width, height: stage.height }}
         />
+        {tool === 'pen' && (
+          <div className="pen-hint">
+            {penPoints.length === 0
+              ? 'Pen: click to place points'
+              : 'Click the first point to close · Enter to finish open · Esc to cancel'}
+          </div>
+        )}
       </div>
 
       <div className="viewer-footer">
@@ -608,4 +749,204 @@ function findHandle(
     }
   }
   return undefined;
+}
+
+// -- masks, pen and shape creation ----------------------------------------
+
+/** Distance in screen pixels within which a mask handle is grabbed. */
+const MASK_HANDLE_HIT = 7;
+
+interface MaskHandleHit {
+  layerId: string;
+  maskIndex: number;
+  vertexIndex: number;
+  part: 'point' | 'inTangent' | 'outTangent';
+  path: BezierPath;
+  world: Matrix;
+}
+
+function findMaskHandle(
+  comp: Composition,
+  selectedLayerIds: string[],
+  point: Vec2,
+  time: number,
+  zoom: number,
+): MaskHandleHit | undefined {
+  const tolerance = MASK_HANDLE_HIT / zoom;
+  for (const id of selectedLayerIds) {
+    const layer = findLayer(comp, id);
+    if (!layer || layer.locked) continue;
+    const world = worldMatrix(comp, layer, time);
+
+    for (let maskIndex = 0; maskIndex < layer.masks.length; maskIndex += 1) {
+      const mask = layer.masks[maskIndex];
+      if (mask.locked) continue;
+      const path = valueAtTime(mask.path, time);
+
+      for (let i = 0; i < path.vertices.length; i += 1) {
+        const v = path.vertices[i];
+        const parts: ['point' | 'inTangent' | 'outTangent', Vec2][] = [
+          ['inTangent', [v.point[0] + v.inTangent[0], v.point[1] + v.inTangent[1]]],
+          ['outTangent', [v.point[0] + v.outTangent[0], v.point[1] + v.outTangent[1]]],
+          ['point', v.point],
+        ];
+        for (const [part, local] of parts) {
+          if (part !== 'point'
+            && Math.abs(v[part][0]) < 1e-6 && Math.abs(v[part][1]) < 1e-6) continue;
+          const world2 = applyToPoint(world, local);
+          if (Math.hypot(world2[0] - point[0], world2[1] - point[1]) <= tolerance) {
+            return { layerId: id, maskIndex, vertexIndex: i, part, path, world };
+          }
+        }
+      }
+    }
+  }
+  return undefined;
+}
+
+function drawMasks(
+  ctx: CanvasRenderingContext2D,
+  comp: Composition,
+  layer: Layer,
+  time: number,
+  toScreen: (p: Vec2) => Vec2,
+): void {
+  if (layer.masks.length === 0) return;
+  const world = worldMatrix(comp, layer, time);
+
+  for (const mask of layer.masks) {
+    const path = transformPath(valueAtTime(mask.path, time), world);
+    ctx.save();
+    ctx.strokeStyle = mask.color;
+    ctx.lineWidth = 1;
+    ctx.setLineDash(mask.mode === 'none' ? [4, 3] : []);
+    ctx.beginPath();
+    const segments = pathSegments(path);
+    if (segments.length > 0) {
+      const [sx, sy] = toScreen(segments[0].p0);
+      ctx.moveTo(sx, sy);
+      for (const { p1, p2, p3 } of segments) {
+        const c1 = toScreen(p1);
+        const c2 = toScreen(p2);
+        const end = toScreen(p3);
+        ctx.bezierCurveTo(c1[0], c1[1], c2[0], c2[1], end[0], end[1]);
+      }
+      if (path.closed) ctx.closePath();
+    }
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    for (const v of path.vertices) {
+      const [x, y] = toScreen(v.point);
+      for (const tangent of [v.inTangent, v.outTangent]) {
+        if (Math.abs(tangent[0]) < 1e-6 && Math.abs(tangent[1]) < 1e-6) continue;
+        const [hx, hy] = toScreen([v.point[0] + tangent[0], v.point[1] + tangent[1]]);
+        ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.lineTo(hx, hy);
+        ctx.stroke();
+        ctx.fillStyle = mask.color;
+        ctx.beginPath();
+        ctx.arc(hx, hy, 3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.fillStyle = mask.color;
+      ctx.strokeStyle = '#15171b';
+      ctx.fillRect(x - 3, y - 3, 6, 6);
+      ctx.strokeRect(x - 3.5, y - 3.5, 7, 7);
+    }
+    ctx.restore();
+  }
+}
+
+function drawPenPreview(
+  ctx: CanvasRenderingContext2D,
+  points: Vec2[],
+  toScreen: (p: Vec2) => Vec2,
+): void {
+  ctx.save();
+  ctx.strokeStyle = '#ffd24a';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  points.forEach((point, i) => {
+    const [x, y] = toScreen(point);
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+  for (const point of points) {
+    const [x, y] = toScreen(point);
+    ctx.fillStyle = '#ffd24a';
+    ctx.fillRect(x - 3, y - 3, 6, 6);
+  }
+  ctx.restore();
+}
+
+function drawCreationPreview(
+  ctx: CanvasRenderingContext2D,
+  creating: { shape: 'rect' | 'ellipse'; a: Vec2; b: Vec2 },
+  toScreen: (p: Vec2) => Vec2,
+): void {
+  const [x0, y0] = toScreen(creating.a);
+  const [x1, y1] = toScreen(creating.b);
+  ctx.save();
+  ctx.strokeStyle = '#ffd24a';
+  ctx.setLineDash([4, 3]);
+  ctx.lineWidth = 1;
+  if (creating.shape === 'rect') {
+    ctx.strokeRect(Math.min(x0, x1), Math.min(y0, y1), Math.abs(x1 - x0), Math.abs(y1 - y0));
+  } else {
+    ctx.beginPath();
+    ctx.ellipse(
+      (x0 + x1) / 2, (y0 + y1) / 2,
+      Math.abs(x1 - x0) / 2, Math.abs(y1 - y0) / 2,
+      0, 0, Math.PI * 2,
+    );
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+/**
+ * A drawn rectangle or ellipse becomes a mask on the selected layer, or a new
+ * shape layer when nothing is selected — the After Effects rule.
+ */
+function commitDrawnShape(
+  comp: Composition,
+  shape: 'rect' | 'ellipse',
+  centre: Vec2,
+  size: Vec2,
+): void {
+  const state = useEditor.getState();
+  const layerId = state.selectedLayerIds[0];
+  const layer = layerId ? findLayer(comp, layerId) : undefined;
+
+  if (layer) {
+    const inverse = invert(worldMatrix(comp, layer, state.time));
+    const local = applyToPoint(inverse, centre);
+    const corner = applyToPoint(inverse, [centre[0] + size[0] / 2, centre[1] + size[1] / 2]);
+    const localSize: Vec2 = [
+      Math.abs(corner[0] - local[0]) * 2,
+      Math.abs(corner[1] - local[1]) * 2,
+    ];
+    state.addMask(layer.id, shape, { centre: local, size: localSize });
+    return;
+  }
+
+  state.addShapeLayerAt(shape, centre, size);
+}
+
+function commitPenPath(comp: Composition, points: Vec2[], closed: boolean): void {
+  if (points.length < 2) return;
+  const state = useEditor.getState();
+  const layerId = state.selectedLayerIds[0];
+  const layer = layerId ? findLayer(comp, layerId) : undefined;
+  const path: BezierPath = { vertices: points.map((p) => vertex(p)), closed };
+
+  if (layer) {
+    const inverse = invert(worldMatrix(comp, layer, state.time));
+    state.addMaskFromPath(layer.id, transformPath(path, inverse));
+    return;
+  }
+  state.addShapeLayerFromPath(path);
 }
