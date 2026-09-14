@@ -5,6 +5,7 @@ import { useEditor } from '@/state/store';
 import { usePlayback } from '@/state/usePlayback';
 import { Splitter } from '@/ui/components/Splitter';
 import { CompSettingsDialog } from '@/ui/dialogs/CompSettingsDialog';
+import { EffectsBrowserDialog } from '@/ui/dialogs/EffectsBrowserDialog';
 import { KeyframeInterpolationDialog } from '@/ui/dialogs/KeyframeInterpolationDialog';
 import { KeyframeVelocityDialog } from '@/ui/dialogs/KeyframeVelocityDialog';
 import { ShortcutsDialog } from '@/ui/dialogs/ShortcutsDialog';
@@ -99,11 +100,12 @@ export function App() {
       <div className="status-bar">
         <span>{status ?? 'Ready'}</span>
         <span style={{ flex: 1 }} />
-        <span>Phase 3 — masks, shapes, text animators, track mattes</span>
+        <span>Phase 4 — effect engine, adjustment layers, null objects</span>
       </div>
 
       {dialog === 'compSettings' && <CompSettingsDialog onClose={() => store.openDialog(null)} />}
       {dialog === 'shortcuts' && <ShortcutsDialog onClose={() => store.openDialog(null)} />}
+      {dialog === 'effects' && <EffectsBrowserDialog onClose={() => store.openDialog(null)} />}
       {dialog === 'velocity' && <KeyframeVelocityDialog onClose={() => store.openDialog(null)} />}
       {dialog === 'interpolation' && (
         <KeyframeInterpolationDialog onClose={() => store.openDialog(null)} />

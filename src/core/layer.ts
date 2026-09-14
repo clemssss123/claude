@@ -77,6 +77,7 @@ function baseLayer(init: LayerInit): Omit<LayerBase, 'type'> {
       [init.width / 2, init.height / 2],
     ),
     masks: [],
+    effects: [],
     trackMatte: 'none',
   };
 }
@@ -347,7 +348,10 @@ export type OutlineNode =
       /** Paths of every property under this group. */
       childPaths: string[];
       /** Identifies the thing the group stands for, for context menus. */
-      target?: { type: 'mask' | 'animator' | 'selector' | 'shape'; path: string };
+      target?: {
+        type: 'mask' | 'animator' | 'selector' | 'shape' | 'effect';
+        path: string;
+      };
     }
   | {
       kind: 'prop';
@@ -472,6 +476,26 @@ function animatorNodes(layer: TextLayer): OutlineNode[] {
   return nodes;
 }
 
+function effectNodes(layer: Layer): OutlineNode[] {
+  const nodes: OutlineNode[] = [];
+  layer.effects.forEach((effect, index) => {
+    const path = `effects.${index}`;
+    const children = Object.keys(effect.params).map((key) => (
+      propNode(`${path}.params.${key}`, effect.params[key], 3, 'e')
+    ));
+    nodes.push({
+      kind: 'group',
+      key: path,
+      name: effect.name,
+      depth: 2,
+      childPaths: propPaths(children),
+      target: { type: 'effect', path },
+    });
+    nodes.push(...children);
+  });
+  return nodes;
+}
+
 function maskNodes(layer: Layer): OutlineNode[] {
   const nodes: OutlineNode[] = [];
   layer.masks.forEach((mask, index) => {
@@ -536,6 +560,18 @@ export function layerOutline(layer: Layer): OutlineNode[] {
       childPaths: propPaths(masks),
     });
     nodes.push(...masks);
+  }
+
+  if (layer.effects.length > 0) {
+    const effects = effectNodes(layer);
+    nodes.push({
+      kind: 'group',
+      key: 'effects',
+      name: 'Effects',
+      depth: 1,
+      childPaths: propPaths(effects),
+    });
+    nodes.push(...effects);
   }
 
   const transform = transformNodes(layer.transform, 'transform', 2);

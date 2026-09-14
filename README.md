@@ -1,7 +1,7 @@
 # Keyframe Studio
 
 A browser-based 2D motion graphics compositor modeled on Adobe After Effects.
-TypeScript + React, no 3D. Built in phases; this repository is at **phase 3**.
+TypeScript + React, no 3D. Built in phases; this repository is at **phase 4**.
 
 ```bash
 npm install
@@ -59,15 +59,15 @@ Keyframe Velocity (Ctrl+Shift+K) and Keyframe Interpolation (Ctrl+Alt+K)
 dialogs edit the same handles numerically.
 
 **Keyboard** — the After Effects keymap lives in one table
-(`src/input/shortcuts.ts`). 88 of 95 bindings are live; the rest are registered
+(`src/input/shortcuts.ts`). 92 of 97 bindings are live; the rest are registered
 against their real AE chord and shown greyed out with the phase that implements
 them. Press **F1** for the list. Double-tap chords (UU/MM/EE) are handled.
 
 ## What is not built yet
 
-Phases 4–7 from the plan: the effect engine and its 50–100 effects,
-adjustment-layer rendering, motion blur rendering (settings are stored and
-editable now), expressions, precomps, time remapping, and WebCodecs export.
+Phases 5–7 from the plan: the remaining effects on the way to 50–100, motion
+blur rendering (settings are stored and editable now), expressions, precomps,
+time remapping, and WebCodecs export.
 
 Within phase 3's areas, three things are deliberately not built: variable-width
 mask feather (per-point feather geometry), Merge Paths on shape layers, and
@@ -83,6 +83,7 @@ pretending.
 src/core/     document model, paths, shapes, text, interpolation, easings,
               motion paths — no React, no DOM
 src/render/   Canvas2D compositor: buffers, masks, mattes, hit testing
+src/render/effects/  the effect registry and every built-in effect
 src/state/    zustand store, undo history, playback transport
 src/input/    After Effects keymap and the global key handler
 src/ui/       panels, dialogs and shared controls

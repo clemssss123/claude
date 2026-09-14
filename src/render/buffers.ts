@@ -27,15 +27,40 @@ export class BufferPool {
 
   private height = 0;
 
-  /** Resize every buffer to the frame size; contents are discarded. */
+  /**
+   * Resize the frame-sized buffers. Buffers claimed through `sized` carry
+   * their own dimensions and are left alone.
+   */
   resize(width: number, height: number): void {
     if (this.width === width && this.height === height) return;
     this.width = width;
     this.height = height;
-    for (const buffer of this.buffers.values()) {
+    for (const [name, buffer] of this.buffers) {
+      if (this.sizedNames.has(name)) continue;
       buffer.canvas.width = width;
       buffer.canvas.height = height;
     }
+  }
+
+  private sizedNames = new Set<string>();
+
+  /**
+   * A buffer at an explicit size, for the layer-space passes where the
+   * working area is the layer's bounds rather than the whole frame.
+   */
+  sized(name: string, width: number, height: number): Buffer {
+    this.sizedNames.add(name);
+    const buffer = this.get(name);
+    const w = Math.max(1, Math.ceil(width));
+    const h = Math.max(1, Math.ceil(height));
+    if (buffer.canvas.width !== w) buffer.canvas.width = w;
+    if (buffer.canvas.height !== h) buffer.canvas.height = h;
+    buffer.ctx.setTransform(1, 0, 0, 1, 0, 0);
+    buffer.ctx.globalAlpha = 1;
+    buffer.ctx.globalCompositeOperation = 'source-over';
+    buffer.ctx.filter = 'none';
+    buffer.ctx.clearRect(0, 0, w, h);
+    return buffer;
   }
 
   get(name: string): Buffer {

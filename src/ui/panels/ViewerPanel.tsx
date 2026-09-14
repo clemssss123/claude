@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { findLayer } from '@/core/composition';
-import { layerCorners, parentMatrix, worldMatrix } from '@/core/layer';
+import { isLayerActiveAt, layerCorners, parentMatrix, worldMatrix } from '@/core/layer';
 import { applyToPoint, invert } from '@/core/matrix';
 import type { Matrix } from '@/core/matrix';
 import { activeComposition } from '@/core/project';
@@ -157,6 +157,13 @@ export function ViewerPanel() {
     ctx.clearRect(0, 0, stage.width, stage.height);
 
     if (viewer.showGuides) drawCompFrame(ctx, comp, toScreen);
+
+    // Nulls have nothing to draw, so the viewer draws their box for them.
+    for (const layer of comp.layers) {
+      if (layer.type === 'null' && isLayerActiveAt(layer, time)) {
+        drawNullLayer(ctx, comp, layer, time, toScreen);
+      }
+    }
 
     for (const id of selectedLayerIds) {
       const layer = findLayer(comp, id);
@@ -588,6 +595,39 @@ function drawCompFrame(
   ctx.strokeStyle = 'rgba(255,255,255,0.18)';
   ctx.lineWidth = 1;
   ctx.strokeRect(tl[0] + 0.5, tl[1] + 0.5, br[0] - tl[0], br[1] - tl[1]);
+}
+
+/** Outline and centre cross for a null object, which renders nothing itself. */
+function drawNullLayer(
+  ctx: CanvasRenderingContext2D,
+  comp: Composition,
+  layer: Layer,
+  time: number,
+  toScreen: (p: Vec2) => Vec2,
+): void {
+  const corners = layerCorners(comp, layer, time).map(toScreen);
+  ctx.save();
+  ctx.strokeStyle = 'rgba(230, 200, 90, 0.75)';
+  ctx.setLineDash([4, 3]);
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  corners.forEach(([x, y], i) => {
+    if (i === 0) ctx.moveTo(x + 0.5, y + 0.5);
+    else ctx.lineTo(x + 0.5, y + 0.5);
+  });
+  ctx.closePath();
+  ctx.stroke();
+
+  const cx = (corners[0][0] + corners[2][0]) / 2;
+  const cy = (corners[0][1] + corners[2][1]) / 2;
+  ctx.setLineDash([]);
+  ctx.beginPath();
+  ctx.moveTo(cx - 5, cy);
+  ctx.lineTo(cx + 5, cy);
+  ctx.moveTo(cx, cy - 5);
+  ctx.lineTo(cx, cy + 5);
+  ctx.stroke();
+  ctx.restore();
 }
 
 function drawSelection(

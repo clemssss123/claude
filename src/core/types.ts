@@ -170,6 +170,19 @@ export interface Mask {
 export type TrackMatteType =
   | 'none' | 'alpha' | 'alpha-inverted' | 'luma' | 'luma-inverted';
 
+/**
+ * One effect applied to a layer. The parameters are ordinary animatable
+ * properties, so effects keyframe, graph and undo like everything else.
+ * `matchName` ties the instance back to its definition in the effect registry.
+ */
+export interface EffectInstance {
+  id: Id;
+  matchName: string;
+  name: string;
+  enabled: boolean;
+  params: Record<string, AnyProperty>;
+}
+
 export interface LayerBase {
   id: Id;
   name: string;
@@ -196,6 +209,7 @@ export interface LayerBase {
   height: number;
   transform: TransformGroup;
   masks: Mask[];
+  effects: EffectInstance[];
   trackMatte: TrackMatteType;
 }
 

@@ -12,6 +12,7 @@ import {
   createRepeater, createShapeGroup, createStarShape, createStroke, createTrimPaths,
 } from '@/core/shapes';
 import { createRangeSelector, createTextAnimator } from '@/core/text';
+import { createEffectInstance } from '@/render/effects';
 import { applyBezierToSegment, bakeIntoSegment, loadCustomPresets, saveCustomPresets } from '@/core/easings';
 import type { EasingPreset } from '@/core/easings';
 import { applyEasyEase, enforceTangentMode } from '@/core/interpolation';
@@ -119,7 +120,9 @@ export interface EditorState {
   graphEditor: boolean;
   statusMessage: string | null;
   /** Name of the open modal dialog, if any. */
-  dialog: 'compSettings' | 'shortcuts' | 'about' | 'velocity' | 'interpolation' | null;
+  dialog:
+    | 'compSettings' | 'shortcuts' | 'about' | 'velocity' | 'interpolation'
+    | 'effects' | null;
 
   // -- document mutation ---------------------------------------------------
   mutate: (label: string, recipe: (project: Project) => void, options?: MutateOptions) => void;
@@ -177,6 +180,13 @@ export interface EditorState {
   addShapeItem: (layerId: Id, kind: 'fill' | 'stroke' | 'trim' | 'repeater' | 'offset') => void;
   removeShapeItem: (layerId: Id, path: string) => void;
 
+  // -- effects -------------------------------------------------------------
+  addEffect: (layerId: Id, matchName: string) => void;
+  removeEffect: (layerId: Id, index: number) => void;
+  toggleEffect: (layerId: Id, index: number) => void;
+  moveEffect: (layerId: Id, index: number, delta: number) => void;
+  removeAllEffects: () => void;
+
   // -- text animators ------------------------------------------------------
   addTextAnimator: (layerId: Id) => void;
   addRangeSelector: (layerId: Id, animatorIndex: number) => void;
@@ -220,6 +230,7 @@ export interface EditorState {
   // -- timeline / panels ---------------------------------------------------
   revealProperties: (revealKey: string, additive: boolean) => void;
   revealAnimated: () => void;
+  revealModified: () => void;
   revealAll: (layerId: Id) => void;
   toggleExpanded: (id: Id) => void;
   setTool: (tool: Tool) => void;
@@ -739,6 +750,63 @@ export const useEditor = create<EditorState>()((set, get) => ({
     set({ selectedProperties: [], selectedKeyframes: [] });
   },
 
+  addEffect: (layerId, matchName) => {
+    const instance = createEffectInstance(matchName);
+    if (!instance) {
+      set({ statusMessage: `No effect named ${matchName}.` });
+      return;
+    }
+    get().mutateComp(`Apply ${instance.name}`, (c) => {
+      const layer = findLayer(c, layerId);
+      if (!layer) return;
+      // A second copy of the same effect gets a numbered name, as in AE.
+      const existing = layer.effects.filter((e) => e.matchName === matchName).length;
+      const copy = structuredClone(instance);
+      if (existing > 0) copy.name = `${instance.name} ${existing + 1}`;
+      layer.effects.push(copy);
+    });
+    get().revealAll(layerId);
+    set({ statusMessage: `Applied ${instance.name}.` });
+  },
+
+  removeEffect: (layerId, index) => {
+    get().mutateComp('Remove Effect', (c) => {
+      const layer = findLayer(c, layerId);
+      if (layer) layer.effects.splice(index, 1);
+    });
+    set({ selectedProperties: [], selectedKeyframes: [] });
+  },
+
+  toggleEffect: (layerId, index) => {
+    get().mutateComp('Toggle Effect', (c) => {
+      const effect = findLayer(c, layerId)?.effects[index];
+      if (effect) effect.enabled = !effect.enabled;
+    });
+  },
+
+  moveEffect: (layerId, index, delta) => {
+    get().mutateComp('Reorder Effect', (c) => {
+      const layer = findLayer(c, layerId);
+      if (!layer) return;
+      const target = index + delta;
+      if (target < 0 || target >= layer.effects.length) return;
+      const [effect] = layer.effects.splice(index, 1);
+      layer.effects.splice(target, 0, effect);
+    });
+  },
+
+  removeAllEffects: () => {
+    const ids = get().selectedLayerIds;
+    if (ids.length === 0) return;
+    get().mutateComp('Remove All Effects', (c) => {
+      for (const id of ids) {
+        const layer = findLayer(c, id);
+        if (layer) layer.effects = [];
+      }
+    });
+    set({ selectedProperties: [], selectedKeyframes: [] });
+  },
+
   addTextAnimator: (layerId) => {
     get().mutateComp('Add Text Animator', (c) => {
       const layer = findLayer(c, layerId);
@@ -1237,6 +1305,26 @@ export const useEditor = create<EditorState>()((set, get) => ({
         .filter((d) => d.property.animated)
         .map((d) => d.path);
       revealed[id] = sameSet(revealed[id] ?? [], animated) ? [] : animated;
+      expanded[id] = revealed[id].length > 0;
+    }
+    set({ revealed, expanded });
+  },
+
+  revealModified: () => {
+    const state = get();
+    const comp = currentComp(state.project);
+    if (!comp) return;
+    const revealed = { ...state.revealed };
+    const expanded = { ...state.expanded };
+    for (const id of state.selectedLayerIds) {
+      const layer = findLayer(comp, id);
+      if (!layer) continue;
+      // "Modified" is anything animated plus anything moved off its default,
+      // which for effects and masks means everything they add to the layer.
+      const paths = allProperties(layer)
+        .filter((d) => d.property.animated || !d.path.startsWith('transform.'))
+        .map((d) => d.path);
+      revealed[id] = sameSet(revealed[id] ?? [], paths) ? [] : paths;
       expanded[id] = revealed[id].length > 0;
     }
     set({ revealed, expanded });

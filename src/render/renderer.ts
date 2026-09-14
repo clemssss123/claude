@@ -1,4 +1,5 @@
-import { isLayerActiveAt, renderableLayers, worldMatrix } from '@/core/layer';
+import { isLayerActiveAt, layerBounds, renderableLayers, worldMatrix } from '@/core/layer';
+import { translation } from '@/core/matrix';
 import type { Matrix } from '@/core/matrix';
 import { rgbaToCss, valueAtTime } from '@/core/property';
 import { buildShapes } from '@/core/shapes';
@@ -6,9 +7,14 @@ import type { DrawableShape } from '@/core/shapes';
 import {
   fontString, glyphTransform, layoutTextLayer, registerTextMeasurer,
 } from '@/core/text';
-import type { Composition, Layer, ShapeLayer, TextLayer } from '@/core/types';
+import type {
+  Composition, EffectInstance, Layer, PropertyValue, ShapeLayer, TextLayer,
+} from '@/core/types';
 import { canvasBlendMode } from './blendMode';
 import { BufferPool } from './buffers';
+import type { Buffer } from './buffers';
+import { getEffectDefinition } from './effects';
+import './effects';
 import { applyMasks, hasActiveMasks } from './masks';
 import { applyTrackMatte } from './mattes';
 import { toPath2D } from './path2d';
@@ -28,6 +34,8 @@ export const DEFAULT_RENDER_OPTIONS: RenderOptions = {
 };
 
 const CHECKER_SIZE = 16;
+/** Cap on the headroom an effect may claim outside a layer, in layer pixels. */
+const MAX_EFFECT_MARGIN = 600;
 const pool = new BufferPool();
 
 /**
@@ -78,11 +86,126 @@ export function renderComposition(
     const layer = layers[i];
     if (!isLayerActiveAt(layer, time)) continue;
 
+    if (layer.type === 'adjustment') {
+      applyAdjustmentLayer(ctx, comp, layer, time, scale);
+      continue;
+    }
+
     const matteLayer = layer.trackMatte !== 'none' && i > 0 ? layers[i - 1] : undefined;
     compositeLayer(ctx, comp, layer, matteLayer, time, scale);
   }
 
   ctx.restore();
+}
+
+// -- effects ---------------------------------------------------------------
+
+function activeEffects(layer: Layer): EffectInstance[] {
+  return layer.effects.filter(
+    (effect) => effect.enabled && getEffectDefinition(effect.matchName) !== undefined,
+  );
+}
+
+function paramReader(effect: EffectInstance, time: number) {
+  return <T extends PropertyValue>(key: string): T => {
+    const property = effect.params[key];
+    return (property ? valueAtTime(property, time) : 0) as T;
+  };
+}
+
+/** Headroom the layer's effects need outside its own bounds. */
+function effectMargin(layer: Layer, time: number): number {
+  let margin = 0;
+  for (const effect of activeEffects(layer)) {
+    const definition = getEffectDefinition(effect.matchName);
+    if (!definition?.margin) continue;
+    margin = Math.max(margin, definition.margin(paramReader(effect, time)));
+  }
+  return Math.min(MAX_EFFECT_MARGIN, Math.max(0, margin));
+}
+
+/**
+ * Run a layer's effect chain over a buffer, ping-ponging between two scratch
+ * buffers so each effect reads a finished image and writes a fresh one.
+ */
+function runEffects(
+  layer: Layer,
+  time: number,
+  input: Buffer,
+  width: number,
+  height: number,
+  scale: number,
+  prefix: string,
+): Buffer {
+  const effects = activeEffects(layer);
+  if (effects.length === 0) return input;
+
+  const ping = pool.sized(`${prefix}FxA`, width, height);
+  const pong = pool.sized(`${prefix}FxB`, width, height);
+
+  let source = input;
+  for (const effect of effects) {
+    const definition = getEffectDefinition(effect.matchName);
+    if (!definition) continue;
+    const dest = source === ping ? pong : ping;
+    dest.ctx.setTransform(1, 0, 0, 1, 0, 0);
+    dest.ctx.globalAlpha = 1;
+    dest.ctx.globalCompositeOperation = 'source-over';
+    dest.ctx.filter = 'none';
+    dest.ctx.clearRect(0, 0, width, height);
+
+    definition.apply({
+      source,
+      dest,
+      width,
+      height,
+      scale,
+      time,
+      pool,
+      get: paramReader(effect, time),
+    });
+    source = dest;
+  }
+  return source;
+}
+
+/**
+ * An adjustment layer effects everything already drawn beneath it, limited by
+ * its own masks. It has no content of its own, so the frame is its input.
+ */
+function applyAdjustmentLayer(
+  target: CanvasRenderingContext2D,
+  comp: Composition,
+  layer: Layer,
+  time: number,
+  scale: number,
+): void {
+  if (activeEffects(layer).length === 0) return;
+  const opacity = valueAtTime(layer.transform.opacity, time) / 100;
+  if (opacity <= 0) return;
+
+  const width = target.canvas.width;
+  const height = target.canvas.height;
+
+  const below = pool.sized('adjustBelow', width, height);
+  below.ctx.drawImage(target.canvas as CanvasImageSource, 0, 0);
+
+  const result = runEffects(layer, time, below, width, height, scale, 'adjust');
+
+  // Masks confine the adjustment; without them it covers the whole frame.
+  const limited = pool.sized('adjustOut', width, height);
+  limited.ctx.drawImage(result.canvas as CanvasImageSource, 0, 0);
+  applyMasks(
+    limited.ctx, layer, time, pool, scale,
+    worldMatrix(comp, layer, time), width, height,
+  );
+
+  target.save();
+  target.setTransform(1, 0, 0, 1, 0, 0);
+  target.globalAlpha = opacity;
+  target.globalCompositeOperation = canvasBlendMode(layer.blendMode);
+  target.drawImage(limited.canvas as CanvasImageSource, 0, 0);
+  target.restore();
 }
 
 function compositeLayer(
@@ -95,11 +218,11 @@ function compositeLayer(
 ): void {
   const opacity = valueAtTime(layer.transform.opacity, time) / 100;
   if (opacity <= 0) return;
-  // Nulls and adjustment layers are controls, not content. Adjustment layers
-  // become real render passes once the effect engine lands.
-  if (layer.type === 'null' || layer.type === 'adjustment') return;
+  // Nulls are parenting controls, not content.
+  if (layer.type === 'null') return;
 
-  const needsBuffer = hasActiveMasks(layer) || matteLayer !== undefined;
+  const effects = activeEffects(layer);
+  const needsBuffer = hasActiveMasks(layer) || effects.length > 0 || matteLayer !== undefined;
   const matrix = worldMatrix(comp, layer, time);
 
   if (!needsBuffer) {
@@ -113,20 +236,37 @@ function compositeLayer(
     return;
   }
 
-  const buffer = pool.clear('layer');
-  buffer.ctx.save();
-  buffer.ctx.scale(scale, scale);
-  buffer.ctx.transform(matrix.a, matrix.b, matrix.c, matrix.d, matrix.e, matrix.f);
-  drawLayerContent(buffer.ctx, layer, time);
-  buffer.ctx.restore();
+  const rendered = renderLayerInLayerSpace(layer, time, scale, 'layer');
+  if (!rendered) return;
 
-  applyMasks(buffer.ctx, layer, time, pool, scale, matrix);
+  if (!matteLayer) {
+    target.save();
+    target.globalAlpha = opacity;
+    target.globalCompositeOperation = canvasBlendMode(layer.blendMode);
+    target.scale(scale, scale);
+    target.transform(matrix.a, matrix.b, matrix.c, matrix.d, matrix.e, matrix.f);
+    drawBufferInLayerSpace(target, rendered);
+    target.restore();
+    return;
+  }
 
-  if (matteLayer) {
-    const matte = pool.clear('matte');
-    // The matte layer's own visibility switch is irrelevant — After Effects
-    // turns it off when the matte is assigned — but its timing still counts.
-    if (time >= matteLayer.inPoint && time < matteLayer.outPoint) {
+  // A track matte lives in composition space, so the layer has to land there
+  // before its alpha can be intersected with the matte's.
+  const width = target.canvas.width;
+  const height = target.canvas.height;
+  const composed = pool.sized('layerComp', width, height);
+  composed.ctx.save();
+  composed.ctx.scale(scale, scale);
+  composed.ctx.transform(matrix.a, matrix.b, matrix.c, matrix.d, matrix.e, matrix.f);
+  drawBufferInLayerSpace(composed.ctx, rendered);
+  composed.ctx.restore();
+
+  const matte = pool.sized('matte', width, height);
+  // The matte layer's own visibility switch is irrelevant — After Effects
+  // turns it off when the matte is assigned — but its timing still counts.
+  if (time >= matteLayer.inPoint && time < matteLayer.outPoint) {
+    const matteRendered = renderLayerInLayerSpace(matteLayer, time, scale, 'matteSrc');
+    if (matteRendered) {
       const matteMatrix = worldMatrix(comp, matteLayer, time);
       matte.ctx.save();
       matte.ctx.globalAlpha = valueAtTime(matteLayer.transform.opacity, time) / 100;
@@ -135,19 +275,72 @@ function compositeLayer(
         matteMatrix.a, matteMatrix.b, matteMatrix.c,
         matteMatrix.d, matteMatrix.e, matteMatrix.f,
       );
-      drawLayerContent(matte.ctx, matteLayer, time);
+      drawBufferInLayerSpace(matte.ctx, matteRendered);
       matte.ctx.restore();
-      applyMasks(matte.ctx, matteLayer, time, pool, scale, matteMatrix);
     }
-    applyTrackMatte(buffer.ctx, matte, layer.trackMatte, pool);
   }
+  applyTrackMatte(composed.ctx, matte, layer.trackMatte, pool);
 
   target.save();
   target.setTransform(1, 0, 0, 1, 0, 0);
   target.globalAlpha = opacity;
   target.globalCompositeOperation = canvasBlendMode(layer.blendMode);
-  target.drawImage(buffer.canvas as CanvasImageSource, 0, 0);
+  target.drawImage(composed.canvas as CanvasImageSource, 0, 0);
   target.restore();
+}
+
+interface LayerRender {
+  buffer: Buffer;
+  /** The area of layer space the buffer covers. */
+  bounds: { x: number; y: number; width: number; height: number };
+}
+
+/**
+ * Draw a layer's content, masks and effects into a buffer in the layer's own
+ * coordinates. Effects run before the transform, as they do in After Effects,
+ * so a blur is a blur of the source rather than of the scaled result.
+ */
+function renderLayerInLayerSpace(
+  layer: Layer,
+  time: number,
+  scale: number,
+  prefix: string,
+): LayerRender | null {
+  const margin = effectMargin(layer, time);
+  const base = layerBounds(layer);
+  const bounds = {
+    x: base.x - margin,
+    y: base.y - margin,
+    width: base.width + margin * 2,
+    height: base.height + margin * 2,
+  };
+  if (bounds.width <= 0 || bounds.height <= 0) return null;
+
+  const width = Math.max(1, Math.ceil(bounds.width * scale));
+  const height = Math.max(1, Math.ceil(bounds.height * scale));
+
+  const buffer = pool.sized(prefix, width, height);
+  buffer.ctx.save();
+  buffer.ctx.setTransform(scale, 0, 0, scale, -bounds.x * scale, -bounds.y * scale);
+  drawLayerContent(buffer.ctx, layer, time);
+  buffer.ctx.restore();
+
+  applyMasks(
+    buffer.ctx, layer, time, pool, scale,
+    translation(-bounds.x, -bounds.y), width, height,
+  );
+
+  const result = runEffects(layer, time, buffer, width, height, scale, prefix);
+  return { buffer: result, bounds };
+}
+
+/** Draw a layer-space buffer back at its place in layer coordinates. */
+function drawBufferInLayerSpace(ctx: Ctx2D, rendered: LayerRender): void {
+  ctx.drawImage(
+    rendered.buffer.canvas as CanvasImageSource,
+    rendered.bounds.x, rendered.bounds.y,
+    rendered.bounds.width, rendered.bounds.height,
+  );
 }
 
 /** Paint a layer's own content, with the layer transform already applied. */

@@ -269,16 +269,16 @@ export const SHORTCUTS: Shortcut[] = [
     label: 'Reveal all modified properties',
     keys: ['uu'],
     category: 'Reveal',
-    status: 'planned',
-    phase: 4,
+    status: 'ready',
+    run: (s) => s.revealModified(),
   },
   {
     id: 'reveal.effects',
     label: 'Reveal effects',
     keys: ['e'],
     category: 'Reveal',
-    status: 'planned',
-    phase: 4,
+    status: 'ready',
+    run: (s) => s.revealProperties('e', false),
   },
   {
     id: 'reveal.expressions',
@@ -587,6 +587,22 @@ export const SHORTCUTS: Shortcut[] = [
     run: (s) => {
       for (const id of s.selectedLayerIds) s.addMask(id, 'rect');
     },
+  },
+  {
+    id: 'effects.browser',
+    label: 'Effects & Presets',
+    keys: ['ctrl+5'],
+    category: 'Effect',
+    status: 'ready',
+    run: (s) => s.openDialog('effects'),
+  },
+  {
+    id: 'effects.removeAll',
+    label: 'Remove all effects from the selected layers',
+    keys: ['ctrl+shift+e'],
+    category: 'Effect',
+    status: 'ready',
+    run: (s) => s.removeAllEffects(),
   },
   {
     id: 'text.addAnimator',

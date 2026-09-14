@@ -38,15 +38,17 @@ export function applyMasks(
   pool: BufferPool,
   scale: number,
   matrix: Matrix,
+  width: number,
+  height: number,
 ): void {
   const masks = layer.masks.filter((mask) => mask.mode !== 'none');
   if (masks.length === 0) return;
 
-  const combined = pool.clear('mask');
-  const single = pool.get('maskSingle');
+  const combined = pool.sized('mask', width, height);
+  const single = pool.sized('maskSingle', width, height);
 
   for (const mask of masks) {
-    drawSingleMask(single, mask, time, scale, matrix, pool);
+    drawSingleMask(single, mask, time, scale, matrix, pool, width, height);
     combined.ctx.globalCompositeOperation = MASK_COMPOSITE[mask.mode as Exclude<MaskMode, 'none'>];
     combined.ctx.globalAlpha = 1;
     combined.ctx.drawImage(single.canvas as CanvasImageSource, 0, 0);
@@ -67,8 +69,12 @@ function drawSingleMask(
   scale: number,
   matrix: Matrix,
   pool: BufferPool,
+  width: number,
+  height: number,
 ): void {
   const { ctx, canvas } = target;
+  void width;
+  void height;
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.globalCompositeOperation = 'source-over';
   ctx.globalAlpha = 1;
@@ -109,7 +115,9 @@ function drawSingleMask(
   // Feather is measured in layer pixels, so it follows the layer's own scale.
   const layerScale = Math.sqrt(Math.abs(matrix.a * matrix.d - matrix.b * matrix.c)) || 1;
   const feather = valueAtTime(mask.feather, time);
-  featherBuffer(target, feather[0] * scale * layerScale, feather[1] * scale * layerScale, pool);
+  featherBuffer(
+    target, feather[0] * scale * layerScale, feather[1] * scale * layerScale, pool,
+  );
 }
 
 /**
@@ -129,7 +137,7 @@ function featherBuffer(
   if (fx <= 0.01 && fy <= 0.01) return;
 
   const { ctx, canvas } = target;
-  const temp = pool.clear('maskFeather');
+  const temp = pool.sized('maskFeather', canvas.width, canvas.height);
 
   if (Math.abs(fx - fy) < 0.01 || fx <= 0.01 || fy <= 0.01) {
     const radius = Math.max(fx, fy);
@@ -141,7 +149,7 @@ function featherBuffer(
     const radius = Math.min(fx, fy);
     const squeezeX = clampRatio(radius / fx);
     const squeezeY = clampRatio(radius / fy);
-    const squeezed = pool.clear('maskSqueeze');
+    const squeezed = pool.sized('maskSqueeze', canvas.width, canvas.height);
     squeezed.ctx.drawImage(
       canvas as CanvasImageSource,
       0, 0, canvas.width, canvas.height,

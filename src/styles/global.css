@@ -527,3 +527,24 @@ input:focus, select:focus { outline: 1px solid var(--accent); }
   color: var(--text);
   pointer-events: none;
 }
+
+/* -- effect controls ----------------------------------------------------- */
+.fx-block { border-bottom: 1px solid var(--border); }
+.fx-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 6px;
+  background: #2a2a2a;
+}
+.fx-name { color: var(--text-bright); font-weight: 600; }
+.fx-heading {
+  padding: 5px 8px;
+  margin-top: 6px;
+  color: var(--text-bright);
+  font-weight: 600;
+  background: #2a2a2a;
+  border-top: 1px solid var(--border);
+}
+.fx-grid { display: flex; flex-wrap: wrap; gap: 5px; }
+.fx-chip { padding: 4px 9px; }
