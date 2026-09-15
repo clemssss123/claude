@@ -1,15 +1,40 @@
 # Keyframe Studio
 
-A browser-based 2D motion graphics compositor modeled on Adobe After Effects.
-TypeScript + React, no 3D. Built in phases; this repository is at **phase 7**, the last one.
+A 2D motion graphics compositor modeled on Adobe After Effects, running either
+as a desktop application or in a browser. TypeScript + React, no 3D. Built in
+phases; this repository is at **phase 7**, the last one.
 
 ```bash
 npm install
-npm run dev        # http://localhost:5173
+npm run dev        # browser:  http://localhost:5173
+npm run desktop    # desktop:  build, then open the app in its own window
 npm test           # core unit tests
 npm run typecheck
 npm run build
 ```
+
+## The desktop app
+
+The editor is the same code in both places; the desktop build wraps it in an
+Electron window with no browser around it, and gives it native file dialogs —
+Save writes back to the file it opened, and an export asks where to put itself
+instead of landing in the downloads folder.
+
+```bash
+npm run dev:desktop   # dev server + desktop window, with hot reload
+npm run dist:win      # Windows installer and portable .exe, into release/
+npm run dist:linux    # AppImage
+npm run dist:mac      # dmg
+```
+
+Each `dist:*` builds only for the platform it names and must run on that
+platform. The **Desktop build** workflow in `.github/workflows/desktop.yml`
+builds the Windows installers on GitHub's runners, so a Windows binary can be
+downloaded from the Actions tab without a Windows machine to build it.
+
+The window has no application menu on purpose: After Effects binds Ctrl+N,
+Ctrl+O, Ctrl+W and Ctrl+M to editing commands, and a menu would take them
+away from the editor. F12 opens developer tools, F5 reloads.
 
 ## What works today
 
@@ -157,9 +182,10 @@ that some browsers ship without — where it is missing the MP4 falls back to
 AV1 and says so, rather than silently producing something different from what
 you asked for. Progress is shown per frame and the export can be cancelled.
 
-**Files** — Save (Ctrl+S) writes back to the file you opened through the File
-System Access API, Save As (Ctrl+Shift+S) picks a new one, and browsers without
-that API fall back to a download and a file picker. Separately the project is
+**Files** — Save (Ctrl+S) writes back to the file you opened, Save As
+(Ctrl+Shift+S) picks a new one. The desktop app does this through native
+dialogs and a real path; in a browser it goes through the File System Access
+API, and browsers without that API fall back to a download and a file picker. Separately the project is
 snapshotted into IndexedDB every fifteen seconds, and a new session offers that
 snapshot back rather than loading over your work.
 

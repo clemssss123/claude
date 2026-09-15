@@ -1,3 +1,4 @@
+import { desktop } from './desktop';
 import { deserializeProject, serializeProject } from '@/core/project';
 import type { Project } from '@/core/types';
 
@@ -34,6 +35,12 @@ interface FilePickerWindow {
 
 let currentHandle: FileHandle | null = null;
 let currentName: string | null = null;
+/** Where the open project lives on disk, in the desktop app. */
+let currentPath: string | null = null;
+
+export function currentFilePath(): string | null {
+  return currentPath;
+}
 
 export function currentFileName(): string | null {
   return currentName;
@@ -55,6 +62,22 @@ const PICKER_OPTIONS = {
 export async function saveProject(project: Project, forcePicker = false): Promise<string> {
   const picker = window as unknown as FilePickerWindow;
   const json = serializeProject(project);
+
+  // The desktop app writes straight to the path it opened, and only asks
+  // where to put a project that has never been saved.
+  const bridge = desktop();
+  if (bridge) {
+    const saved = await bridge.saveProject({
+      text: json,
+      path: currentPath,
+      suggestedName: `${slug(project.name)}.kfs.json`,
+      forcePicker,
+    });
+    if (!saved) throw new DOMException('Save cancelled.', 'AbortError');
+    currentPath = saved.path;
+    currentName = saved.name;
+    return saved.name;
+  }
 
   if (fileSystemAccessAvailable()) {
     if (forcePicker || !currentHandle) {
@@ -90,6 +113,16 @@ export function downloadProject(project: Project, json = serializeProject(projec
 export async function openProject(): Promise<{ project: Project; name: string } | null> {
   const picker = window as unknown as FilePickerWindow;
 
+  const bridge = desktop();
+  if (bridge) {
+    const opened = await bridge.openProject();
+    if (!opened) return null;
+    currentHandle = null;
+    currentPath = opened.path;
+    currentName = opened.name;
+    return { project: deserializeProject(opened.text), name: opened.name };
+  }
+
   if (fileSystemAccessAvailable() && picker.showOpenFilePicker) {
     const [handle] = await picker.showOpenFilePicker({ types: PICKER_OPTIONS.types });
     if (!handle) return null;
@@ -111,6 +144,7 @@ export async function openProject(): Promise<{ project: Project; name: string } 
       }
       try {
         currentHandle = null;
+        currentPath = null;
         currentName = file.name;
         resolve({ project: deserializeProject(await file.text()), name: file.name });
       } catch (error) {

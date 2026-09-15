@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { openProjectFile, saveProjectFile } from '@/input/shortcuts';
 import { useShortcuts } from '@/input/useShortcuts';
+import { isDesktop } from '@/state/desktop';
 import { readAutoSave, writeAutoSave } from '@/state/persistence';
 import { useEditor } from '@/state/store';
 import { usePlayback } from '@/state/usePlayback';
@@ -130,7 +131,7 @@ export function App() {
         <div className="restore-bar">
           <span>
             A project from {new Date(restorable.savedAt).toLocaleString()} was
-            auto-saved in this browser.
+            auto-saved {isDesktop() ? 'on this computer' : 'in this browser'}.
           </span>
           <button
             className="active"

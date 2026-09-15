@@ -5,6 +5,7 @@ import {
   DEFAULT_EXPORT_SETTINGS, exportComposition, plannedCodec, webCodecsAvailable,
 } from '@/render/export';
 import type { ExportFormat, ExportProgress, ExportSettings } from '@/render/export';
+import { desktop, filtersForFilename } from '@/state/desktop';
 import { useEditor } from '@/state/store';
 
 /** Render the composition out to a video file or a PNG sequence. */
@@ -15,6 +16,8 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
   const [progress, setProgress] = useState<ExportProgress | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
+  /** Where the last export landed, in the desktop app. */
+  const [savedPath, setSavedPath] = useState<string | null>(null);
   const [codecs, setCodecs] = useState<Record<string, string | null>>({});
   const cancel = useRef({ cancelled: false });
 
@@ -39,6 +42,7 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
   const run = async () => {
     setError(null);
     setDone(null);
+    setSavedPath(null);
     cancel.current = { cancelled: false };
     setProgress({ frame: 0, total: frames, stage: 'rendering' });
     try {
@@ -49,12 +53,28 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
         onProgress: setProgress,
         signal: cancel.current,
       });
-      const url = URL.createObjectURL(result.blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = result.filename;
-      link.click();
-      URL.revokeObjectURL(url);
+      // The desktop app asks where the file should go and writes it there;
+      // a browser can only hand it to the download folder.
+      const bridge = desktop();
+      if (bridge) {
+        const saved = await bridge.saveFile({
+          data: new Uint8Array(await result.blob.arrayBuffer()),
+          suggestedName: result.filename,
+          filters: filtersForFilename(result.filename),
+        });
+        if (!saved) {
+          setProgress(null);
+          return;
+        }
+        setSavedPath(saved.path);
+      } else {
+        const url = URL.createObjectURL(result.blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = result.filename;
+        link.click();
+        URL.revokeObjectURL(url);
+      }
       setDone(
         `${result.filename} — ${result.frames} frames, ${result.codec}, `
         + `${formatSize(result.blob.size)}`,
@@ -163,7 +183,19 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
           )}
 
           {error && <div className="export-error">{error}</div>}
-          {done && <div className="export-done">Saved {done}</div>}
+          {done && (
+            <div className="export-done">
+              Saved {done}
+              {savedPath && (
+                <button
+                  style={{ marginLeft: 8 }}
+                  onClick={() => { void desktop()?.revealFile(savedPath); }}
+                >
+                  Show in folder
+                </button>
+              )}
+            </div>
+          )}
         </div>
         <footer>
           {running

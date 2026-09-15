@@ -1,0 +1,39 @@
+name: Desktop build
+
+# Builds the desktop app. Run it from the Actions tab (Run workflow) and the
+# finished installers appear under the run's Artifacts.
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/epic-clarke-js2ou0]
+    paths:
+      - 'src/**'
+      - 'electron/**'
+      - 'build/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'vite.config.ts'
+      - '.github/workflows/desktop.yml'
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+      - run: npx electron-builder --win --publish never
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: keyframe-studio-windows
+          path: |
+            release/*.exe
+            release/*.blockmap
+          if-no-files-found: error
