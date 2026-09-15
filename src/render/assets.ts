@@ -21,6 +21,14 @@ interface LoadedAsset {
   /** Time requested while a seek was already running. */
   pendingTime?: number;
   /**
+   * The last frame that finished decoding, kept as a still.
+   *
+   * A video element mid-seek has nothing to draw, and drawing nothing means
+   * the layer vanishes for as long as the seek takes. Holding the previous
+   * frame is what every editor does instead.
+   */
+  hold?: { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D };
+  /**
    * The time last asked for. A seek lands on the nearest decodable frame,
    * which is rarely the exact time requested, so comparing new requests
    * against `currentTime` would seek again for ever — and a video that is
@@ -31,6 +39,12 @@ interface LoadedAsset {
 
 /** Close enough to count as already showing that frame. */
 const SEEK_TOLERANCE = 0.001;
+/**
+ * How far a playing video may drift from the playhead before it is pulled
+ * back. Seeking costs a decode from the nearest keyframe, so correcting
+ * small drift every frame would be slower than the drift itself.
+ */
+const PLAYBACK_DRIFT = 0.25;
 
 const loaded = new Map<Id, LoadedAsset>();
 const repaintListeners = new Set<() => void>();
@@ -41,6 +55,57 @@ const repaintListeners = new Set<() => void>();
  * While this is set, only `prepareFootageForTime` may move a video.
  */
 let exclusive = false;
+/** True while the composition is playing back in real time. */
+let playing = false;
+
+/**
+ * Tell the videos whether the composition is playing.
+ *
+ * Scrubbing and playing want opposite things from a video element. Scrubbing
+ * wants the exact frame, which means a seek. Playing wants *a* frame every
+ * time, on time — and seeking once per frame cannot deliver that: each seek
+ * decodes from the nearest keyframe, which on a long clip takes longer than
+ * the frame it was meant to fill, so the picture stalls or drops out
+ * entirely. So playback lets the element play itself and only corrects it
+ * when it has drifted.
+ */
+export function setFootagePlayback(next: boolean): void {
+  if (playing === next) return;
+  playing = next;
+  for (const entry of loaded.values()) {
+    const video = entry.video;
+    if (!video) continue;
+    if (next) {
+      video.playbackRate = 1;
+      void video.play().catch(() => {});
+    } else {
+      video.pause();
+      holdFrame(entry);
+      // The element has moved on its own, so what was last *asked* for is no
+      // longer what is showing; forget it, or the next seek is skipped.
+      entry.requestedTime = undefined;
+    }
+  }
+}
+
+/** Keep the current frame as a still, for the moments there is none. */
+function holdFrame(entry: LoadedAsset): void {
+  const video = entry.video;
+  if (!video || video.readyState < 2 || !video.videoWidth) return;
+  if (!entry.hold) {
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    entry.hold = { canvas, ctx };
+  }
+  try {
+    entry.hold.ctx.drawImage(video, 0, 0, entry.hold.canvas.width, entry.hold.canvas.height);
+  } catch {
+    // A frame that cannot be read is simply not held.
+  }
+}
 
 /** Take sole control of the videos, and give it back when done. */
 export function beginExclusiveFootage(): () => void {
@@ -113,8 +178,10 @@ export function footageDrawable(id: Id): CanvasImageSource | null {
   const entry = loaded.get(id);
   if (!entry) return null;
   if (entry.image) return entry.image;
-  if (entry.video && entry.video.readyState >= 2) return entry.video;
-  return null;
+  if (!entry.video) return null;
+  if (entry.video.readyState >= 2) return entry.video;
+  // Mid-seek: the last decoded frame rather than a hole in the composition.
+  return entry.hold?.canvas ?? null;
 }
 
 /**
@@ -127,8 +194,21 @@ export function requestFootageTime(id: Id, time: number): void {
   const entry = loaded.get(id);
   if (!entry?.video) return;
   const clamped = clampToDuration(entry, time);
-  if (alreadyShowing(entry, clamped)) return;
 
+  if (playing) {
+    const video = entry.video;
+    if (video.paused && !video.ended) void video.play().catch(() => {});
+    // Time remapping, a loop, or a stalled decode will pull it out of step;
+    // anything smaller than that is left alone.
+    if (Math.abs(video.currentTime - clamped) > PLAYBACK_DRIFT) {
+      entry.requestedTime = clamped;
+      if (entry.seeking) entry.pendingTime = clamped;
+      else startSeek(entry, clamped);
+    }
+    return;
+  }
+
+  if (alreadyShowing(entry, clamped)) return;
   entry.requestedTime = clamped;
   if (entry.seeking) {
     entry.pendingTime = clamped;
@@ -147,11 +227,15 @@ function alreadyShowing(entry: LoadedAsset, time: number): boolean {
 function startSeek(entry: LoadedAsset, time: number): void {
   const video = entry.video;
   if (!video) return;
+  // Keep what is on screen before giving it up: a seek blanks the element,
+  // and the first one of a playback has nothing held behind it yet.
+  holdFrame(entry);
   entry.seeking = new Promise<void>((resolve) => {
     const done = () => {
       video.removeEventListener('seeked', done);
       video.removeEventListener('error', done);
       entry.seeking = undefined;
+      holdFrame(entry);
       const next = entry.pendingTime;
       entry.pendingTime = undefined;
       if (next !== undefined && Math.abs(video.currentTime - next) > SEEK_TOLERANCE) {

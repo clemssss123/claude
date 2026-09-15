@@ -237,11 +237,16 @@ machine that does not hold those bytes and the item shows as **missing**, with
 a Relink button that points it at the file again, the way After Effects does;
 the layers using it keep their keyframes throughout.
 
-Video seeking is asynchronous, so the two consumers treat it differently: the
-viewer draws whichever frame is decoded and repaints when the seek lands, which
-keeps scrubbing responsive, while export takes sole control of the videos and
-waits for every seek before encoding its frame. Time Remapping works on footage
-as well as pre-comps.
+Video seeking is asynchronous, and the three things that read a video want
+different guarantees from it. **Scrubbing** wants the exact frame, so it seeks
+and repaints when the seek lands. **Playback** wants a frame on time rather
+than the exact one: a seek decodes from the nearest keyframe, which on a long
+clip takes longer than the frame it was meant to fill, so playing the element
+and correcting it only when it drifts more than a quarter of a second is the
+only way the picture keeps up. **Export** takes sole control of the videos and
+waits for every seek before it encodes. Whenever an element has nothing
+decoded — the moment a seek begins — the last frame is held, so a layer never
+blinks out mid-scrub. Time Remapping works on footage as well as pre-comps.
 
 ### Editor
 

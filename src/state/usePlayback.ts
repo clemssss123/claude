@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { activeComposition } from '@/core/project';
+import { setFootagePlayback } from '@/render/assets';
 import { useEditor } from './store';
 
 /**
@@ -10,6 +11,13 @@ import { useEditor } from './store';
 export function usePlayback(): void {
   const playing = useEditor((s) => s.playing);
   const frame = useRef(0);
+
+  // Video layers play themselves while the composition does; see the note in
+  // `setFootagePlayback`.
+  useEffect(() => {
+    setFootagePlayback(playing);
+    return () => setFootagePlayback(false);
+  }, [playing]);
 
   useEffect(() => {
     if (!playing) return undefined;
