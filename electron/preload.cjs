@@ -11,4 +11,5 @@ contextBridge.exposeInMainWorld('desktop', {
   saveProject: (request) => ipcRenderer.invoke('project:save', request),
   saveFile: (request) => ipcRenderer.invoke('file:save', request),
   revealFile: (filePath) => ipcRenderer.invoke('shell:reveal', filePath),
+  openExternal: (url) => ipcRenderer.invoke('shell:open', url),
 });

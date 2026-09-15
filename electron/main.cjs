@@ -111,6 +111,11 @@ ipcMain.handle('shell:reveal', (_event, filePath) => {
   if (filePath) shell.showItemInFolder(filePath);
 });
 
+ipcMain.handle('shell:open', async (_event, url) => {
+  // Only ever hand the system a web address.
+  if (typeof url === 'string' && /^https?:\/\//.test(url)) await shell.openExternal(url);
+});
+
 // -- lifecycle ---------------------------------------------------------------
 
 if (!app.requestSingleInstanceLock()) {

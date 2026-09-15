@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { openProjectFile, saveProjectFile } from '@/input/shortcuts';
 import { useShortcuts } from '@/input/useShortcuts';
+import { buildLabel } from '@/core/version';
 import { isDesktop } from '@/state/desktop';
 import { readAutoSave, writeAutoSave } from '@/state/persistence';
 import { useEditor } from '@/state/store';
@@ -13,6 +14,7 @@ import { SolidSettingsDialog } from '@/ui/dialogs/SolidSettingsDialog';
 import { KeyframeInterpolationDialog } from '@/ui/dialogs/KeyframeInterpolationDialog';
 import { KeyframeVelocityDialog } from '@/ui/dialogs/KeyframeVelocityDialog';
 import { ShortcutsDialog } from '@/ui/dialogs/ShortcutsDialog';
+import { UpdateDialog } from '@/ui/dialogs/UpdateDialog';
 import { EffectControlsPanel } from '@/ui/panels/EffectControlsPanel';
 import { PreviewPanel } from '@/ui/panels/PreviewPanel';
 import { ProjectPanel } from '@/ui/panels/ProjectPanel';
@@ -87,6 +89,7 @@ export function App() {
         <button onClick={() => store.undo()} disabled={past.length === 0}>Undo</button>
         <button onClick={() => store.redo()}>Redo</button>
         <span className="spacer" />
+        <button onClick={() => store.openDialog('updates')}>Update</button>
         <button onClick={() => store.openDialog('shortcuts')}>Keyboard Shortcuts (F1)</button>
       </div>
 
@@ -152,11 +155,14 @@ export function App() {
       <div className="status-bar">
         <span>{status ?? 'Ready'}</span>
         <span style={{ flex: 1 }} />
-        <span>Phase 7 — export, save/load, Shake and Twitch</span>
+        <span title="Click for updates" style={{ cursor: 'pointer' }} onClick={() => store.openDialog('updates')}>
+          Keyframe Studio {buildLabel()}
+        </span>
       </div>
 
       {dialog === 'compSettings' && <CompSettingsDialog onClose={() => store.openDialog(null)} />}
       {dialog === 'shortcuts' && <ShortcutsDialog onClose={() => store.openDialog(null)} />}
+      {dialog === 'updates' && <UpdateDialog onClose={() => store.openDialog(null)} />}
       {dialog === 'effects' && <EffectsBrowserDialog onClose={() => store.openDialog(null)} />}
       {dialog === 'export' && <ExportDialog onClose={() => store.openDialog(null)} />}
       {dialog === 'solidSettings' && <SolidSettingsDialog onClose={() => store.openDialog(null)} />}

@@ -272,7 +272,17 @@ from either edge, keyframes you can click, shift-click, marquee-select, drag
 interpolation type, as in AE.
 
 **Transport** — real-time playback looping the work area, frame stepping,
-keyframe navigation (J/K).
+keyframe navigation (J/K). The playback clock runs in seconds beside the
+playhead rather than on top of it: the playhead is snapped to the frame grid,
+and accumulating display ticks on a snapped value rounds a 120 Hz tick
+straight back to the frame it came from, which stops the transport dead while
+it still says it is playing.
+
+**Updates** — the Update button in the menu bar (and the version in the status
+bar) asks GitHub whether the branch has moved since this build was made, and
+names the commit that is waiting. The editor ships as source, so it cannot
+replace itself; what it can do is tell you what you are running and put the
+download one click away.
 
 **Undo/redo** — every document edit is named and undoable; drags collapse into
 a single history step.

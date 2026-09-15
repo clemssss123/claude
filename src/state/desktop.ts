@@ -36,6 +36,8 @@ export interface DesktopBridge {
     filters?: FileFilter[];
   }) => Promise<SavedFile | null>;
   revealFile: (path: string) => Promise<void>;
+  /** Open a link in the user's browser rather than in the app window. */
+  openExternal?: (url: string) => Promise<void>;
 }
 
 /** The bridge, or null in a browser. */

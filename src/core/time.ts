@@ -55,3 +55,38 @@ export function parseTimecode(input: string, frameRate: number): number | null {
   const time = frames / frameRate;
   return negative ? -time : time;
 }
+
+export interface PlaybackStep {
+  /** Where the playhead lands, before any frame snapping. */
+  time: number;
+  /** False once a non-looping playback has run past the end. */
+  playing: boolean;
+}
+
+/**
+ * Advance the playback clock by one display frame.
+ *
+ * The clock has to be kept separately from the playhead, in seconds, because
+ * the playhead is snapped to the composition's frame grid. Accumulating on
+ * top of the snapped value looks harmless and is not: on a 120 Hz display a
+ * tick is a quarter of a 30 fps frame, the snap rounds it straight back to
+ * the frame it came from, and the playhead never moves at all — the transport
+ * sits there saying it is playing. At exactly 60 Hz the same rounding lands
+ * on a half and plays at double speed. Only the unsnapped clock is safe to
+ * add to.
+ */
+export function advancePlayback(
+  clock: number,
+  delta: number,
+  range: { start: number; end: number; loop: boolean },
+): PlaybackStep {
+  const span = Math.max(1e-6, range.end - range.start);
+  let next = clock + delta;
+
+  if (next >= range.end) {
+    if (!range.loop) return { time: range.end, playing: false };
+    next = range.start + ((next - range.start) % span);
+  }
+  if (next < range.start) next = range.start;
+  return { time: next, playing: true };
+}
