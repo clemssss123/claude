@@ -369,17 +369,37 @@ function applyAdjustmentLayer(
   below.ctx.drawImage(target.canvas as CanvasImageSource, 0, 0);
 
   const result = runEffects(layer, time, below, width, height, scale, scoped('adjust'));
+  const matrix = worldMatrix(comp, layer, time);
 
   // Masks confine the adjustment; without them it covers the whole frame.
   const limited = pool.sized(scoped('adjustOut'), width, height);
   limited.ctx.drawImage(result.canvas as CanvasImageSource, 0, 0);
-  applyMasks(
-    limited.ctx, layer, time, pool, scale,
-    worldMatrix(comp, layer, time), width, height,
-  );
+  applyMasks(limited.ctx, layer, time, pool, scale, matrix, width, height);
 
   target.save();
   target.setTransform(1, 0, 0, 1, 0, 0);
+
+  // A Normal adjustment layer *replaces* the frame it covers. Laying the
+  // processed copy over the untouched original instead would let the
+  // original show through wherever the result is not fully opaque — a
+  // blurred edge would keep the hard edge underneath it, and an effect
+  // that removes pixels would remove nothing. Erasing by the same coverage
+  // and opacity first is what makes the result the frame.
+  //
+  // Opacity still fades the effect in, because erasing 40% of the original
+  // and drawing 40% of the result mixes the two exactly as AE does. Any
+  // other blend mode means to combine with what is below, so it composites
+  // over the original untouched.
+  if (layer.blendMode === 'normal') {
+    const coverage = pool.sized(scoped('adjustCoverage'), width, height);
+    coverage.ctx.fillStyle = '#ffffff';
+    coverage.ctx.fillRect(0, 0, width, height);
+    applyMasks(coverage.ctx, layer, time, pool, scale, matrix, width, height);
+    target.globalAlpha = opacity;
+    target.globalCompositeOperation = 'destination-out';
+    target.drawImage(coverage.canvas as CanvasImageSource, 0, 0);
+  }
+
   target.globalAlpha = opacity;
   target.globalCompositeOperation = canvasBlendMode(layer.blendMode);
   target.drawImage(limited.canvas as CanvasImageSource, 0, 0);

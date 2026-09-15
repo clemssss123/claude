@@ -87,9 +87,13 @@ registerEffect({
     dest.ctx.globalAlpha = 1;
     dest.ctx.clearRect(0, 0, width, height);
     dest.ctx.globalCompositeOperation = 'source-over';
-    dest.ctx.globalAlpha = 1 / samples;
     for (let i = 0; i < samples; i += 1) {
       const t = i - (samples - 1) / 2;
+      // A running average: the nth copy goes on at 1/(n+1), which leaves an
+      // opaque region opaque. Drawing every copy at a flat 1/samples never
+      // reaches full alpha (it converges to about 63%), so the blur would
+      // quietly make the layer see-through.
+      dest.ctx.globalAlpha = 1 / (i + 1);
       dest.ctx.drawImage(source.canvas as CanvasImageSource, dx * t, dy * t);
     }
     dest.ctx.globalAlpha = 1;
@@ -118,10 +122,12 @@ registerEffect({
     dest.ctx.globalCompositeOperation = 'copy';
     dest.ctx.clearRect(0, 0, width, height);
     dest.ctx.globalCompositeOperation = 'source-over';
-    dest.ctx.globalAlpha = 1 / samples;
 
     for (let i = 0; i < samples; i += 1) {
       const t = (i / (samples - 1) - 0.5) * 2;
+      // Running average, so the blur keeps the layer's opacity — see the
+      // note in Directional Blur.
+      dest.ctx.globalAlpha = 1 / (i + 1);
       dest.ctx.save();
       dest.ctx.translate(cx, cy);
       if (spin) dest.ctx.rotate((amount * t * Math.PI) / 180);
@@ -279,14 +285,18 @@ registerEffect({
     dest.ctx.globalCompositeOperation = 'source-over';
 
     const rings = 3;
-    const samples = blades * rings + 1;
-    dest.ctx.globalAlpha = 1 / samples;
+    // Running average again: a flat 1/samples would leave the whole layer
+    // translucent, which an out-of-focus image is not.
+    let drawn = 0;
+    const average = () => { dest.ctx.globalAlpha = 1 / (drawn + 1); drawn += 1; };
     dest.ctx.filter = `blur(${radius / 6}px)`;
+    average();
     dest.ctx.drawImage(boosted.canvas as CanvasImageSource, 0, 0);
     for (let ring = 1; ring <= rings; ring += 1) {
       const r = (radius * ring) / rings;
       for (let blade = 0; blade < blades; blade += 1) {
         const angle = rotation + (blade / blades) * Math.PI * 2;
+        average();
         dest.ctx.drawImage(
           boosted.canvas as CanvasImageSource,
           Math.cos(angle) * r,

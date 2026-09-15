@@ -263,6 +263,7 @@ export interface EditorState {
   revealModified: () => void;
   revealExpressions: () => void;
   revealAll: (layerId: Id) => void;
+  revealEffects: (layerId: Id) => void;
   toggleExpanded: (id: Id) => void;
   setTool: (tool: Tool) => void;
   setViewer: (patch: Partial<ViewerState>) => void;
@@ -1048,7 +1049,10 @@ export const useEditor = create<EditorState>()((set, get) => ({
       if (existing > 0) copy.name = `${instance.name} ${existing + 1}`;
       layer.effects.push(copy);
     });
-    get().revealAll(layerId);
+    // Reveal the Effects group only. Opening the layer's whole property tree
+    // would push the layers under it out of view, which reads as if they had
+    // gone; AE shows the effect you just applied and leaves the rest alone.
+    get().revealEffects(layerId);
     set({ statusMessage: `Applied ${instance.name}.` });
   },
 
@@ -1629,6 +1633,21 @@ export const useEditor = create<EditorState>()((set, get) => ({
       expanded[id] = revealed[id].length > 0;
     }
     set({ revealed, expanded });
+  },
+
+  revealEffects: (layerId) => {
+    const state = get();
+    const comp = currentComp(state.project);
+    const layer = comp && findLayer(comp, layerId);
+    if (!layer) return;
+    const already = state.revealed[layerId] ?? [];
+    const effectPaths = allProperties(layer)
+      .map((d) => d.path)
+      .filter((path) => path.startsWith('effects.'));
+    set({
+      revealed: { ...state.revealed, [layerId]: [...new Set([...already, ...effectPaths])] },
+      expanded: { ...state.expanded, [layerId]: true },
+    });
   },
 
   revealAll: (layerId) => {
