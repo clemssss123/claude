@@ -50,12 +50,17 @@ describe('shake and twitch', () => {
     expect(names).toContain('Twitch');
   });
 
-  it('gives Shake the controls the brief asked for', () => {
+  it('gives Shake the controls the plugin it is modelled on has', () => {
     const shake = allEffectDefinitions().find((d) => d.name === 'Shake')!;
     const keys = shake.params.map((p) => p.key);
     for (const key of [
-      'magnitude', 'frequency', 'octaves', 'seed', 'positionAmount',
-      'rotationAmount', 'scaleAmount', 'lockX', 'lockY', 'smoothness',
+      // What the frame does.
+      'amplitude', 'positionAmount', 'rotationAmount', 'zoomAmount',
+      // How it moves.
+      'frequency', 'octaves', 'roughness', 'wander', 'wanderFrequency',
+      // What happens at the edges, and in the shutter.
+      'edges', 'motionBlur', 'shutterAngle', 'blurSamples',
+      'lockX', 'lockY', 'timeOffset', 'seed',
     ]) {
       expect(keys).toContain(key);
     }
@@ -74,7 +79,7 @@ describe('shake and twitch', () => {
       const definition = allEffectDefinitions().find((d) => d.name === name)!;
       const instance = createEffectInstance(definition.matchName)!;
       expect(valueAtTime(instance.params.seed, 0)).toBe(0);
-      expect(valueAtTime(instance.params.amount ?? instance.params.magnitude, 0)).toBe(100);
+      expect(valueAtTime(instance.params.amount ?? instance.params.amplitude, 0)).toBe(100);
     }
   });
 

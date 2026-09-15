@@ -1,4 +1,4 @@
-import { clamp01, fractalNoise, hashNoise, mapPixels, rgbaTo255 } from './pixels';
+import { clamp01, fbm, hashNoise, mapPixels, rgbaTo255 } from './pixels';
 import { registerEffect } from './registry';
 import type { RGBA, Vec2 } from '@/core/types';
 
@@ -124,34 +124,110 @@ registerEffect({
   name: 'Fractal Noise',
   category: 'Noise & Grain',
   params: [
+    {
+      key: 'fractalType', name: 'Fractal Type', kind: 'select', default: 0,
+      options: ['Basic', 'Turbulent Smooth', 'Turbulent Sharp', 'Dynamic', 'Max', 'Rocky'],
+    },
+    {
+      key: 'noiseType', name: 'Noise Type', kind: 'select', default: 3,
+      options: ['Block', 'Linear', 'Soft Linear', 'Spline'],
+    },
+    { key: 'invert', name: 'Invert', kind: 'checkbox', default: 0 },
     { key: 'contrast', name: 'Contrast', kind: 'percent', default: 100, min: 0, max: 400, unit: '%' },
     { key: 'brightness', name: 'Brightness', kind: 'number', default: 0, min: -200, max: 200 },
+    {
+      key: 'overflow', name: 'Overflow', kind: 'select', default: 0,
+      options: ['Clip', 'Soft Clamp', 'Wrap Back', 'Allow HDR'],
+    },
+    { key: 'rotation', name: 'Rotation', kind: 'angle', default: 0, unit: '°' },
     { key: 'scaleAmount', name: 'Scale', kind: 'percent', default: 100, min: 1, max: 1000, unit: '%' },
-    { key: 'complexity', name: 'Complexity', kind: 'number', default: 4, min: 1, max: 8 },
-    { key: 'evolution', name: 'Evolution', kind: 'angle', default: 0, unit: '°' },
+    { key: 'scaleWidth', name: 'Scale Width', kind: 'percent', default: 100, min: 1, max: 1000, unit: '%' },
+    { key: 'scaleHeight', name: 'Scale Height', kind: 'percent', default: 100, min: 1, max: 1000, unit: '%' },
     { key: 'offset', name: 'Offset Turbulence', kind: 'vec2', default: [0, 0], dimensionNames: ['X', 'Y'] },
-    { key: 'invert', name: 'Invert', kind: 'checkbox', default: 0 },
+    { key: 'complexity', name: 'Complexity', kind: 'number', default: 6, min: 1, max: 10 },
+    { key: 'subInfluence', name: 'Sub Influence', kind: 'percent', default: 70, min: 0, max: 200, unit: '%' },
+    { key: 'subScaling', name: 'Sub Scaling', kind: 'percent', default: 200, min: 10, max: 400, unit: '%' },
+    { key: 'evolution', name: 'Evolution', kind: 'angle', default: 0, unit: '°' },
+    { key: 'seed', name: 'Random Seed', kind: 'number', default: 0, min: 0, max: 9999 },
     { key: 'opacity', name: 'Opacity', kind: 'percent', default: 100, min: 0, max: 100, unit: '%' },
   ],
   apply: ({ source, dest, width, height, scale, get }) => {
+    const fractalType = Math.round(get<number>('fractalType'));
+    const noiseType = (['block', 'linear', 'soft', 'spline'] as const)[
+      Math.max(0, Math.min(3, Math.round(get<number>('noiseType'))))
+    ];
+    const invert = get<number>('invert') >= 0.5;
     const contrast = get<number>('contrast') / 100;
     const brightness = get<number>('brightness');
-    const noiseScale = Math.max(1, get<number>('scaleAmount')) * scale;
-    const octaves = Math.max(1, Math.min(8, Math.round(get<number>('complexity'))));
-    const evolution = get<number>('evolution') / 360;
+    const overflow = Math.round(get<number>('overflow'));
+    const rotation = (get<number>('rotation') * Math.PI) / 180;
+    const uniform = Math.max(1, get<number>('scaleAmount'));
+    const scaleX = (uniform * get<number>('scaleWidth')) / 100 * scale;
+    const scaleY = (uniform * get<number>('scaleHeight')) / 100 * scale;
     const offset = get<Vec2>('offset');
-    const invert = get<number>('invert') >= 0.5;
+    const octaves = Math.max(1, Math.min(10, Math.round(get<number>('complexity'))));
+    // AE's Sub Settings are the two numbers every fractal sum has: how loud
+    // each finer octave is, and how much finer it gets.
+    const gain = get<number>('subInfluence') / 100;
+    const lacunarity = Math.max(0.1, get<number>('subScaling') / 100);
+    const evolution = get<number>('evolution') / 360 + get<number>('seed') * 11.3;
     const opacity = get<number>('opacity') / 100;
 
+    const fractal = fractalType === 1 ? 'turbulent'
+      : fractalType === 2 ? 'turbulent'
+        : fractalType === 5 ? 'ridged' : 'smooth';
+    const cos = Math.cos(rotation);
+    const sin = Math.sin(rotation);
+    const cx = width / 2;
+    const cy = height / 2;
+
     mapPixels(source, dest, width, height, (r, g, b, a, x, y, out) => {
-      const nx = (x + offset[0] * scale) / noiseScale;
-      const ny = (y + offset[1] * scale) / noiseScale;
-      let value = fractalNoise(nx, ny, evolution, octaves);
+      // Rotate about the centre first, so Rotation turns the pattern rather
+      // than sliding it, then scale each axis.
+      const ox = x - cx + offset[0] * scale;
+      const oy = y - cy + offset[1] * scale;
+      const rx = (ox * cos - oy * sin) / Math.max(1, scaleX);
+      const ry = (ox * sin + oy * cos) / Math.max(1, scaleY);
+
+      let value = fbm(rx, ry, evolution, octaves, {
+        gain,
+        lacunarity,
+        fractal,
+        kind: 'value',
+        interp: noiseType,
+      });
+      // Turbulent Sharp keeps the creases the absolute value makes; the
+      // smooth one rounds them off. Dynamic evolves each octave separately,
+      // so the fine detail boils while the large shapes drift.
+      if (fractalType === 1) value = Math.sqrt(clamp01(value));
+      if (fractalType === 3) {
+        value = fbm(rx, ry, evolution * 2, octaves, {
+          gain, lacunarity, fractal: 'smooth', kind: 'value', interp: noiseType,
+        });
+      }
+      if (fractalType === 4) value = Math.max(value, 1 - value);
       if (invert) value = 1 - value;
-      const level = clamp01((value - 0.5) * contrast + 0.5) * 255 + brightness;
-      out[0] = r + (level - r) * opacity;
-      out[1] = g + (level - g) * opacity;
-      out[2] = b + (level - b) * opacity;
+
+      let level = (value - 0.5) * contrast + 0.5 + brightness / 255;
+      switch (overflow) {
+        case 1:
+          // Soft Clamp rolls the ends over instead of flattening them.
+          level = 0.5 + 0.5 * Math.tanh((level - 0.5) * 2);
+          break;
+        case 2: {
+          // Wrap Back folds anything past the ends back into range.
+          const folded = Math.abs(level % 2);
+          level = folded > 1 ? 2 - folded : folded;
+          break;
+        }
+        default:
+          level = clamp01(level);
+      }
+
+      const shade = clamp01(level) * 255;
+      out[0] = r + (shade - r) * opacity;
+      out[1] = g + (shade - g) * opacity;
+      out[2] = b + (shade - b) * opacity;
       out[3] = a + (255 - a) * opacity;
     });
   },

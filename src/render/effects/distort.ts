@@ -122,7 +122,8 @@ registerEffect({
         out[0] = x + (sx - x) * amount;
         out[1] = y + (sy - y) * amount;
       }
-    });
+    // Angle wraps around the circle; radius stops at the edge pixel.
+    }, { edgesX: 'wrap', edgesY: 'clamp' });
   },
 });
 
@@ -161,7 +162,7 @@ registerEffect({
       const offset = wave((along / wavelength) * 2 * Math.PI + phase) * amplitude;
       out[0] = x + dirX * offset;
       out[1] = y + dirY * offset;
-    });
+    }, { edges: 'clamp' });
   },
 });
 
@@ -192,7 +193,7 @@ registerEffect({
       const factor = 1 - strength * (1 - distance) * (1 - distance);
       out[0] = cx + nx * rx * factor;
       out[1] = cy + ny * ry * factor;
-    });
+    }, { edges: 'clamp' });
   },
 });
 
@@ -227,7 +228,7 @@ registerEffect({
       const sin = Math.sin(amount);
       out[0] = cx + dx * cos - dy * sin;
       out[1] = cy + dx * sin + dy * cos;
-    });
+    }, { edges: 'clamp' });
   },
 });
 
@@ -263,7 +264,7 @@ registerEffect({
       const dy = (fractalNoise(nx + 37.2, ny + 19.4, evolution, octaves) - 0.5) * 2 * amount;
       out[0] = x + (mode === 4 ? 0 : dx);
       out[1] = y + (mode === 5 ? 0 : dy);
-    });
+    }, { edges: 'clamp' });
   },
 });
 
@@ -312,7 +313,7 @@ registerEffect({
       const v = (channelAt(verticalChannel, i) / 255 - 0.5) * 2;
       out[0] = x + h * maxH;
       out[1] = y + v * maxV;
-    });
+    }, { edges: 'clamp' });
   },
 });
 
@@ -350,7 +351,7 @@ registerEffect({
       const push = Math.sin((distance / waveWidth) * Math.PI * 2 - phase) * waveHeight * falloff;
       out[0] = x + (dx / distance) * push;
       out[1] = y + (dy / distance) * push;
-    });
+    }, { edges: 'clamp' });
   },
 });
 

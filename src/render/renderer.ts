@@ -77,6 +77,7 @@ export function renderComposition(
   const scale = 1 / options.resolution;
   beginExpressionFrame();
   resolveComposition = options.resolveComposition;
+  currentFrameRate = comp.frameRate;
   renderDepth = 0;
 
   pool.resize(ctx.canvas.width, ctx.canvas.height);
@@ -339,6 +340,7 @@ function runEffects(
       scale,
       time,
       pool,
+      frameRate: currentFrameRate,
       get: paramReader(effect, time),
       sampleAtTime,
     });
@@ -564,6 +566,8 @@ function drawBufferInLayerSpace(ctx: Ctx2D, rendered: LayerRender): void {
 
 /** Resolver for the composition currently being rendered, set per frame. */
 let resolveComposition: ((id: Id) => Composition | undefined) | undefined;
+/** Frame rate of the composition being rendered, for effects that need it. */
+let currentFrameRate = 30;
 
 /** Paint a layer's own content, with the layer transform already applied. */
 function drawLayerContent(ctx: Ctx2D, layer: Layer, time: number, scale: number): void {

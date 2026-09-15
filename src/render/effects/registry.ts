@@ -38,6 +38,8 @@ export interface EffectContext {
   /** Render resolution scale: 1 at full, 0.5 at half. */
   scale: number;
   time: number;
+  /** Frames per second of the composition being rendered. */
+  frameRate: number;
   pool: BufferPool;
   /** Parameter value at the current time. */
   get: <T extends PropertyValue>(key: string) => T;

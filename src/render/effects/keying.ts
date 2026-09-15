@@ -1,8 +1,59 @@
-import { blurBuffer, clamp01, luminance, mapPixels, rgbaTo255 } from './pixels';
+import { blurBuffer, clamp01, copyBuffer, luminance, mapPixels, rgbaTo255 } from './pixels';
 import { registerEffect } from './registry';
+import type { Buffer, BufferPool } from '../buffers';
 import type { RGBA } from '@/core/types';
 
 /** Keying. */
+
+/**
+ * Erode or dilate a matte in place: positive shrinks it, negative grows it.
+ * A key is rarely usable without this — the edge always lands a pixel or two
+ * wide of where it should, and every keyer in After Effects offers it.
+ */
+function chokeMatte(
+  buffer: Buffer, pool: BufferPool, width: number, height: number, amount: number,
+): void {
+  if (Math.abs(amount) < 0.01) return;
+  const scratch = pool.sized('fxChoke', width, height);
+  copyBuffer(buffer, scratch, width, height);
+  const data = scratch.ctx.getImageData(0, 0, width, height).data;
+  const radius = Math.min(12, Math.ceil(Math.abs(amount)));
+  const shrink = amount > 0;
+
+  mapPixels(scratch, buffer, width, height, (r, g, b, _a, x, y, out) => {
+    let alpha = shrink ? 255 : 0;
+    for (let dy = -radius; dy <= radius; dy += 1) {
+      for (let dx = -radius; dx <= radius; dx += 1) {
+        if (dx * dx + dy * dy > radius * radius) continue;
+        const px = Math.min(width - 1, Math.max(0, x + dx));
+        const py = Math.min(height - 1, Math.max(0, y + dy));
+        const sample = data[(py * width + px) * 4 + 3];
+        alpha = shrink ? Math.min(alpha, sample) : Math.max(alpha, sample);
+      }
+    }
+    out[0] = r;
+    out[1] = g;
+    out[2] = b;
+    out[3] = alpha;
+  });
+}
+
+/** Soften a matte's edge without moving the colours behind it. */
+function softenMatte(
+  buffer: Buffer, pool: BufferPool, width: number, height: number, radius: number,
+): void {
+  if (radius <= 0.01) return;
+  const blurred = pool.sized('fxSoften', width, height);
+  blurBuffer(buffer, blurred, width, height, radius, radius, pool);
+  const alphaOf = blurred.ctx.getImageData(0, 0, width, height).data;
+  mapPixels(buffer, buffer, width, height, (r, g, b, _a, x, y, out) => {
+    out[0] = r;
+    out[1] = g;
+    out[2] = b;
+    out[3] = alphaOf[(y * width + x) * 4 + 3];
+  });
+}
+
 
 registerEffect({
   matchName: 'ADBE Color Key',
@@ -14,10 +65,11 @@ registerEffect({
     { key: 'edgeThin', name: 'Edge Thin', kind: 'number', default: 0, min: -10, max: 10 },
     { key: 'edgeFeather', name: 'Edge Feather', kind: 'number', default: 20, min: 0, max: 442 },
   ],
-  apply: ({ source, dest, width, height, get }) => {
+  apply: ({ source, dest, width, height, scale, pool, get }) => {
     const [kr, kg, kb] = rgbaTo255(get<RGBA>('colour'));
     const tolerance = get<number>('tolerance');
     const feather = Math.max(0.001, get<number>('edgeFeather'));
+    const edgeThin = get<number>('edgeThin') * scale;
 
     mapPixels(source, dest, width, height, (r, g, b, a, _x, _y, out) => {
       const distance = Math.hypot(r - kr, g - kg, b - kb);
@@ -25,6 +77,8 @@ registerEffect({
       const alpha = clamp01((distance - tolerance) / feather);
       out[3] = a * alpha;
     });
+
+    chokeMatte(dest, pool, width, height, edgeThin);
   },
 });
 
@@ -112,9 +166,11 @@ registerEffect({
     { key: 'clipBlack', name: 'Clip Black', kind: 'number', default: 5, min: 0, max: 100 },
     { key: 'clipWhite', name: 'Clip White', kind: 'number', default: 90, min: 0, max: 100 },
     { key: 'despill', name: 'Despill Amount', kind: 'percent', default: 100, min: 0, max: 100, unit: '%' },
+    { key: 'screenShrink', name: 'Screen Shrink/Grow', kind: 'number', default: 0, min: -12, max: 12 },
+    { key: 'screenSoftness', name: 'Screen Softness', kind: 'number', default: 0, min: 0, max: 50 },
     { key: 'showMatte', name: 'Show Matte', kind: 'checkbox', default: 0 },
   ],
-  apply: ({ source, dest, width, height, get }) => {
+  apply: ({ source, dest, width, height, scale, pool, get }) => {
     const [kr, kg, kb] = rgbaTo255(get<RGBA>('screenColour'));
     const gain = Math.max(1, get<number>('screenGain')) / 100;
     const balance = get<number>('screenBalance') / 100;
@@ -156,6 +212,11 @@ registerEffect({
       }
       out[3] = alpha;
     });
+
+    if (!showMatte) {
+      chokeMatte(dest, pool, width, height, get<number>('screenShrink') * scale);
+      softenMatte(dest, pool, width, height, get<number>('screenSoftness') * scale);
+    }
   },
 });
 

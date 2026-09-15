@@ -153,7 +153,7 @@ layer at other times through that same pipeline.
 | Generate (9) | Fill, Gradient Ramp, 4-Color Gradient, Checkerboard, Grid, Cell Pattern, Lens Flare, Beam, Circle |
 | Noise & Grain (6) | Fractal Noise, Noise, Noise HLS, Add Grain, Median, Dust & Scratches |
 | Transition (5) | Linear Wipe, Radial Wipe, Venetian Blinds, Block Dissolve, Gradient Wipe |
-| Keying (4) | Chroma Key (with spill suppression), Color Key, Luma Key, Extract |
+| Keying (4) | Chroma Key (spill suppression, screen shrink and softness), Color Key (with edge thin), Luma Key, Extract |
 | Channel (4) | Invert, Channel Mixer, Shift Channels, Minimax |
 | Matte (2) | Simple Choker, Matte Choker |
 | Perspective (2) | Drop Shadow, Bevel Alpha |
@@ -164,12 +164,47 @@ Effect Controls lists them with their parameters, enable, reorder and delete;
 interactive control: drag its five points and the plotted spline is the same
 one the pixels are sampled through.
 
-**Shake** drives the whole layer from layered noise — magnitude, frequency,
-octaves, smoothness, separate position/rotation/scale amounts, per-axis locks
-and a seed — for camera shake you did not have to keyframe. **Twitch** chops
-the timeline into blocks and glitches each one differently: torn bands, a
-whole-frame jolt, blur and an RGB split, held for a beat rather than
-flickering every frame.
+**Shake** is modelled on Sapphire's S_Shake rather than on a wiggle
+expression. Two motions run at once: octaves of smooth noise for the hand,
+and a slower **Wander** underneath for the operator losing the frame — the
+drift is most of what sells it. Amplitude splits into position, rotation and
+zoom; Frequency, Octaves and Roughness shape the motion; **Edges** decides
+what happens where the shake pulls the frame away from its own edge (Zoom to
+Fill computes the exact scale that covers it, or reflect, repeat, leave it
+transparent); and the shake has its own **Motion Blur** with a shutter angle,
+sampled across the slice of the frame the shutter is open for. The noise is
+interpolated with a cubic, so velocity is continuous and the motion settles
+and turns the way a hand does instead of ticking at every lattice point.
+
+**Twitch** chops the timeline into blocks and glitches each one differently:
+torn bands, a whole-frame jolt, blur and an RGB split, held for a beat rather
+than flickering every frame.
+
+#### How close they are to the originals
+
+Every warp — Twirl, Bulge, Ripple, Wave Warp, Polar Coordinates, Turbulent
+Displace, Displacement Map, Kaleida — resamples **bilinearly**, with the edge
+rule its original uses: Polar Coordinates wraps in angle and clamps in radius,
+Wave Warp repeats its edge pixels, Kaleida mirrors at the fold. Nearest
+neighbour is a pixel out, and on a moving distortion that error crawls along
+every edge as stair-steps; a hard checkerboard twirled through 180° comes back
+with 177 shades rather than the 2 it started with.
+
+**Deep Glow** builds a mip pyramid and adds every level back at full size, so
+one falloff reaches across the frame instead of a stack of visible rings, with
+a soft-knee threshold and radial chromatic aberration — each channel focused
+at its own scale, the way a lens does it, rather than smeared sideways.
+**Glow** has AE's full set: Glow Based On, Operation, Dimensions, and the A & B
+colour ramp with looping, phase and midpoint. **Roughen Edges** disturbs only
+a band along the outline, measured by depth into the alpha, so the interior
+stays whole — roughening the alpha everywhere eats holes out of the middle,
+which is not what the original does. **Fractal Noise** carries Fractal Type,
+Noise Type, Overflow, rotation, per-axis scaling and the Sub Settings that are
+really a fractal sum's gain and lacunarity.
+
+The noise underneath all of it is a mixed-integer hash rather than the usual
+`fract(sin(dot(...)))`, and Fractal Noise picks its interpolation the way AE
+does: Block, Linear, Soft Linear or Spline.
 
 ### Export and files
 
