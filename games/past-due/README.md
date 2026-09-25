@@ -70,3 +70,23 @@ come due behind your back. While you are away, ventures keep earning at 25%
 The page exposes `window.pastDue` in the browser console, with the live
 `state` and the game's core functions (`tick`, `punch`, `buySkill`,
 `doRebirth`, and so on). Use it to inspect or fast-forward a run.
+
+## Desktop version
+
+`desktop/` wraps the game in Electron so it runs in its own window, with the
+fonts bundled so it looks right offline. Saves live in the app's own data
+folder.
+
+```bash
+cd games/past-due/desktop
+npm install
+npm start          # play in a desktop window
+npm run dist:win   # portable Windows .exe, into desktop/release/
+```
+
+The **Past Due desktop build** workflow (`.github/workflows/past-due.yml`)
+builds the Windows .exe on GitHub whenever the game changes. It publishes the
+file as the `past-due-v1.0.0` GitHub Release.
+
+The .exe is not code-signed, so Windows SmartScreen may warn about it on first
+launch. Choose "More info", then "Run anyway".

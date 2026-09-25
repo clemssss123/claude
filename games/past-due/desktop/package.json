@@ -1,0 +1,33 @@
+{
+  "name": "past-due",
+  "productName": "Past Due",
+  "version": "1.0.0",
+  "private": true,
+  "description": "An incremental game about rent, rebirth and the people you used to be.",
+  "author": "Past Due",
+  "main": "main.cjs",
+  "scripts": {
+    "prepare-app": "node prepare-app.cjs",
+    "start": "npm run prepare-app && electron .",
+    "dist:win": "npm run prepare-app && electron-builder --win --publish never",
+    "dist:linux": "npm run prepare-app && electron-builder --linux --publish never",
+    "dist:mac": "npm run prepare-app && electron-builder --mac --publish never"
+  },
+  "devDependencies": {
+    "electron": "^33.4.11",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "game.pastdue.app",
+    "productName": "Past Due",
+    "directories": { "output": "release" },
+    "files": ["main.cjs", "app/**/*", "package.json"],
+    "win": {
+      "target": [{ "target": "portable", "arch": ["x64"] }],
+      "signAndEditExecutable": false
+    },
+    "portable": { "artifactName": "PastDue-${version}-portable.exe" },
+    "linux": { "target": ["AppImage"], "category": "Game" },
+    "mac": { "target": ["dmg"], "category": "public.app-category.simulation-games" }
+  }
+}

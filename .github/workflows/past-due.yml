@@ -1,0 +1,46 @@
+name: Past Due desktop build
+
+# Builds the Past Due game as a portable Windows .exe and publishes it as a
+# GitHub Release, so there is a direct download link. Also runs from the
+# Actions tab (Run workflow).
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/inspiring-wright-rb6rbg]
+    paths:
+      - 'games/past-due/**'
+      - '.github/workflows/past-due.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: games/past-due/desktop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: games/past-due/desktop/package-lock.json
+      - run: npm ci
+      - run: npm run dist:win
+      - uses: actions/upload-artifact@v4
+        with:
+          name: past-due-windows
+          path: games/past-due/desktop/release/*.exe
+          if-no-files-found: error
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: past-due-v1.0.0
+          name: Past Due 1.0.0
+          target_commitish: ${{ github.sha }}
+          body: |
+            Past Due for Windows (64-bit). Portable: download `PastDue-1.0.0-portable.exe` and double-click it, no install needed.
+            Windows SmartScreen may warn that the app is unrecognised because it is not code-signed. Choose "More info", then "Run anyway".
+          files: games/past-due/desktop/release/PastDue-1.0.0-portable.exe
+          overwrite_files: true
