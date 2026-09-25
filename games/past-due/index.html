@@ -1,0 +1,2287 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Past Due</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=IBM+Plex+Mono:wght@400;500;600&family=Public+Sans:wght@400;500;600;700&display=swap">
+<style>
+:root {
+  --paper: #E9EFE6;
+  --sheet: #F6F9F4;
+  --sheet-2: #DEE7DA;
+  --rule: #C6D5C2;
+  --rule-strong: #8FA58B;
+  --ink: #17242C;
+  --ink-2: #4B5C64;
+  --ink-3: #7A8A8E;
+  --carbon: #4940C8;
+  --carbon-soft: rgba(73, 64, 200, .12);
+  --carbon-ghost: rgba(73, 64, 200, .30);
+  --stamp: #C23A2B;
+  --stamp-soft: rgba(194, 58, 43, .10);
+  --go: #23794A;
+  --go-soft: rgba(35, 121, 74, .12);
+  --manila: #E2C27A;
+  --manila-edge: #B8954A;
+  --on-ink: #F6F9F4;
+  --shadow: 0 1px 0 rgba(23, 36, 44, .06), 0 10px 24px -16px rgba(23, 36, 44, .45);
+  --display: 'Archivo', 'Arial Narrow', 'Helvetica Neue', Arial, sans-serif;
+  --body: 'Public Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #0E1613;
+    --sheet: #15201C;
+    --sheet-2: #1B2823;
+    --rule: #283932;
+    --rule-strong: #46604F;
+    --ink: #E2ECE3;
+    --ink-2: #A2B3A9;
+    --ink-3: #72847B;
+    --carbon: #A39DFF;
+    --carbon-soft: rgba(163, 157, 255, .14);
+    --carbon-ghost: rgba(163, 157, 255, .32);
+    --stamp: #FF7B6C;
+    --stamp-soft: rgba(255, 123, 108, .12);
+    --go: #63D396;
+    --go-soft: rgba(99, 211, 150, .12);
+    --manila: #CFAE62;
+    --manila-edge: #8E7236;
+    --on-ink: #0E1613;
+    --shadow: 0 1px 0 rgba(0, 0, 0, .35), 0 12px 26px -16px rgba(0, 0, 0, .9);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #0E1613;
+  --sheet: #15201C;
+  --sheet-2: #1B2823;
+  --rule: #283932;
+  --rule-strong: #46604F;
+  --ink: #E2ECE3;
+  --ink-2: #A2B3A9;
+  --ink-3: #72847B;
+  --carbon: #A39DFF;
+  --carbon-soft: rgba(163, 157, 255, .14);
+  --carbon-ghost: rgba(163, 157, 255, .32);
+  --stamp: #FF7B6C;
+  --stamp-soft: rgba(255, 123, 108, .12);
+  --go: #63D396;
+  --go-soft: rgba(99, 211, 150, .12);
+  --manila: #CFAE62;
+  --manila-edge: #8E7236;
+  --on-ink: #0E1613;
+  --shadow: 0 1px 0 rgba(0, 0, 0, .35), 0 12px 26px -16px rgba(0, 0, 0, .9);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  padding: 0 16px;
+  background: var(--paper);
+  color: var(--ink);
+  font: 15px/1.45 var(--body);
+}
+button, input, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+button:disabled { cursor: not-allowed; }
+:focus-visible { outline: 2px solid var(--carbon); outline-offset: 2px; }
+h1, h2, h3 { margin: 0; text-wrap: balance; }
+p { margin: 0; }
+.num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+.wrap { max-width: 1260px; margin: 0 auto; padding-block: 18px 56px; }
+
+/* ---------- Masthead ---------- */
+.masthead {
+  display: flex; flex-wrap: wrap; align-items: flex-end; gap: 14px 28px;
+  padding-bottom: 12px; border-bottom: 3px double var(--ink);
+}
+.brand-block { display: grid; gap: 4px; margin-right: auto; }
+.formno {
+  font: 500 11px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--ink-2);
+}
+.brand {
+  font-family: var(--display); font-stretch: 64%; font-weight: 900;
+  font-size: 46px; line-height: .86; letter-spacing: .01em; text-transform: uppercase;
+}
+.brand span { color: var(--stamp); }
+.mast-facts { display: flex; flex-wrap: wrap; gap: 6px 22px; margin: 0; }
+.mast-facts div { display: grid; gap: 2px; }
+.mast-facts dt { font: 500 10px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); }
+.mast-facts dd { margin: 0; font: 600 18px/1.1 var(--mono); font-variant-numeric: tabular-nums; }
+.mast-facts dd.karma { color: var(--carbon); }
+.btn-rebirth {
+  display: grid; gap: 2px; justify-items: start; text-align: left;
+  padding: 9px 14px; border-radius: 3px;
+  background: var(--ink); color: var(--on-ink); border: 1px solid var(--ink);
+}
+.btn-rebirth b { font-family: var(--display); font-stretch: 75%; font-weight: 800; font-size: 17px; letter-spacing: .04em; text-transform: uppercase; line-height: 1; }
+.btn-rebirth small { font: 500 12px/1 var(--mono); opacity: .8; }
+.btn-rebirth:disabled { background: transparent; color: var(--ink-3); border-style: dashed; border-color: var(--rule-strong); }
+.btn-rebirth:not(:disabled):hover { background: var(--carbon); border-color: var(--carbon); }
+
+/* ---------- Desk layout ---------- */
+.desk {
+  display: grid; grid-template-columns: minmax(300px, 372px) minmax(0, 1fr);
+  gap: 28px; margin-top: 20px; align-items: start;
+}
+.ledger {
+  position: sticky; top: calc(env(safe-area-inset-top, 0px) + 12px);
+  display: flex; flex-direction: column; gap: 18px;
+  max-height: calc(100vh - 24px); overflow-y: auto; overscroll-behavior: contain;
+  padding-right: 4px; scrollbar-width: thin;
+}
+.work { min-width: 0; display: flex; flex-direction: column; gap: 16px; }
+@media (max-width: 880px) {
+  .desk { display: flex; flex-direction: column; gap: 18px; }
+  .ledger { display: contents; }
+  .ledger > * , .work { width: 100%; }
+  .o-cash { order: 1; } .o-card { order: 2; } .o-standing { order: 3; } .o-inbox { order: 4; }
+  .work { order: 5; } .o-race { order: 6; } .o-log { order: 7; }
+  .brand { font-size: 40px; }
+}
+
+.sec-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+.sec-head h2, .panel h2 {
+  font-family: var(--display); font-stretch: 75%; font-weight: 800; font-size: 15px;
+  letter-spacing: .1em; text-transform: uppercase;
+}
+.sec-head .aside { font: 500 12px var(--mono); color: var(--ink-2); }
+
+/* ---------- Cash ---------- */
+.cash .label { font: 500 11px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); }
+.cash-num {
+  font-family: var(--display); font-stretch: 70%; font-weight: 850;
+  font-size: clamp(44px, 6.4vw, 64px); line-height: 1; margin: 6px 0 10px;
+  font-variant-numeric: tabular-nums; letter-spacing: -.005em;
+  overflow-wrap: anywhere;
+}
+.cash-num.carbon { text-shadow: 3px 3px 0 var(--carbon-ghost); }
+.rates { display: grid; gap: 3px; }
+.rates div { display: flex; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--rule); padding-bottom: 3px; }
+.rates .k { color: var(--ink-2); font-size: 13px; }
+.rates .v { font: 500 13px var(--mono); font-variant-numeric: tabular-nums; }
+.rates .v.echo { color: var(--carbon); }
+
+/* ---------- Time card ---------- */
+.card-wrap { position: relative; }
+.timecard {
+  display: grid; gap: 8px; width: 100%; padding: 12px 14px 12px; text-align: left;
+  background: var(--sheet); color: var(--ink);
+  border: 1px solid var(--rule-strong); border-radius: 3px; box-shadow: var(--shadow);
+  user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; touch-action: manipulation;
+  transition: transform .06s ease-out, box-shadow .06s ease-out;
+}
+.timecard:hover { border-color: var(--ink-2); }
+.timecard:active { transform: translateY(2px); box-shadow: 0 0 0 transparent; }
+.tc-head {
+  display: flex; justify-content: space-between; gap: 8px;
+  font: 500 10.5px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--ink-2);
+  border-bottom: 1px solid var(--rule); padding-bottom: 7px;
+}
+.tc-main {
+  font-family: var(--display); font-stretch: 62%; font-weight: 900; font-size: 58px; line-height: .84;
+  text-transform: uppercase; letter-spacing: .01em;
+}
+.tc-sub { font: 600 14px/1.2 var(--mono); color: var(--go); font-variant-numeric: tabular-nums; }
+.tc-holes { display: grid; grid-template-columns: repeat(20, minmax(0, 1fr)); gap: 4px; }
+.tc-holes i { display: block; aspect-ratio: 1; border-radius: 50%; border: 1px solid var(--rule-strong); }
+.tc-holes i.on { background: var(--ink); border-color: var(--ink); }
+.timecard.rush .tc-holes i.on { background: var(--stamp); border-color: var(--stamp); }
+.tc-foot { font: 500 11px/1.2 var(--mono); color: var(--ink-3); }
+.fx { position: absolute; inset: 0; pointer-events: none; overflow: visible; }
+.fx span {
+  position: absolute; font: 600 14px/1 var(--mono); color: var(--go); white-space: nowrap;
+  animation: rise .9s ease-out forwards; transform: translate(-50%, -50%);
+}
+.fx span.lucky { color: var(--carbon); font-size: 18px; }
+@keyframes rise { to { opacity: 0; transform: translate(-50%, -190%); } }
+
+/* ---------- Standing ---------- */
+.standing { display: grid; gap: 8px; }
+.srow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 13px; }
+.srow .k { font: 500 10.5px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); min-width: 58px; }
+.boxes { display: inline-flex; gap: 4px; }
+.boxes i { width: 16px; height: 16px; border: 1.5px solid var(--rule-strong); display: grid; place-items: center; }
+.boxes i.on { border-color: var(--stamp); background: var(--stamp-soft); }
+.boxes i.on::after { content: ''; width: 11px; height: 1.5px; background: var(--stamp); transform: rotate(-45deg); box-shadow: 0 0 0 0 transparent; }
+.note { color: var(--ink-3); font-size: 12px; }
+.debt-amt { font: 600 14px var(--mono); color: var(--stamp); font-variant-numeric: tabular-nums; }
+.chip {
+  display: inline-flex; align-items: center; gap: 6px; padding: 3px 8px; border-radius: 2px;
+  font: 600 11.5px/1.3 var(--mono); letter-spacing: .02em; border: 1px solid currentColor;
+}
+.chip.boom { color: var(--go); background: var(--go-soft); }
+.chip.viral { color: var(--carbon); background: var(--carbon-soft); }
+.chip.rush { color: var(--stamp); background: var(--stamp-soft); }
+
+.btn {
+  padding: 6px 12px; border-radius: 3px; border: 1px solid var(--ink);
+  background: var(--ink); color: var(--on-ink); font-weight: 600; font-size: 13px; line-height: 1.2;
+}
+.btn:hover:not(:disabled) { background: var(--carbon); border-color: var(--carbon); }
+.btn:disabled { background: transparent; color: var(--ink-3); border: 1px dashed var(--rule-strong); }
+.btn.ghost { background: transparent; color: var(--ink); border-color: var(--rule-strong); }
+.btn.ghost:hover:not(:disabled) { background: var(--sheet-2); color: var(--ink); border-color: var(--ink-2); }
+.btn.small { padding: 4px 9px; font-size: 12px; }
+.btn.danger { background: transparent; color: var(--stamp); border-color: var(--stamp); }
+.btn.danger:hover:not(:disabled) { background: var(--stamp); color: var(--on-ink); border-color: var(--stamp); }
+
+/* ---------- Inbox / bills ---------- */
+.toggle { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--ink-2); cursor: pointer; }
+.toggle input { accent-color: var(--ink); width: 15px; height: 15px; margin: 0; }
+.bills { display: grid; gap: 8px; }
+.bill {
+  position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 2px 12px;
+  padding: 10px 12px 12px; background: var(--sheet);
+  border: 1px solid var(--rule); border-top: 2px dashed var(--rule-strong); border-radius: 0 0 3px 3px;
+  overflow: hidden;
+}
+.bill .b-kind { font: 500 10.5px/1.2 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); }
+.bill .b-name { font-weight: 600; font-size: 14px; overflow-wrap: anywhere; }
+.bill .b-amt { font: 600 17px/1.2 var(--mono); font-variant-numeric: tabular-nums; text-align: right; }
+.bill .b-due { font: 500 12px/1.2 var(--mono); color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.bill .b-bar { grid-column: 1 / -1; height: 3px; background: var(--sheet-2); margin-top: 6px; }
+.bill .b-bar i { display: block; height: 100%; background: var(--ink-2); transform-origin: left; }
+.bill .b-left { display: grid; gap: 1px; min-width: 0; }
+.bill .b-right { display: grid; gap: 5px; justify-items: end; }
+.bill.urgent { border-color: var(--stamp); border-top-color: var(--stamp); }
+.bill.urgent .b-due { color: var(--stamp); }
+.bill.urgent .b-bar i { background: var(--stamp); }
+.bill.done .b-right .btn { visibility: hidden; }
+.bill.leaving { animation: file-away .45s .6s ease-in forwards; }
+@keyframes file-away { to { opacity: 0; transform: translateX(18px); } }
+.stampmark {
+  position: absolute; left: 50%; top: 50%;
+  font-family: var(--display); font-stretch: 70%; font-weight: 900; font-size: 30px; line-height: 1;
+  letter-spacing: .1em; text-transform: uppercase; white-space: nowrap;
+  padding: 4px 12px 3px; border: 3px solid currentColor; border-radius: 4px;
+  color: var(--go); background: var(--sheet);
+  transform: translate(-50%, -50%) rotate(-9deg);
+  animation: stamp .32s cubic-bezier(.2, 1.5, .4, 1) both;
+}
+.stampmark.bad { color: var(--stamp); }
+@keyframes stamp {
+  from { opacity: 0; transform: translate(-50%, -50%) rotate(-9deg) scale(2.3); }
+  to { opacity: .94; transform: translate(-50%, -50%) rotate(-9deg) scale(1); }
+}
+.upcoming { font-size: 12.5px; color: var(--ink-2); margin-top: 8px; line-height: 1.5; }
+.upcoming .num { color: var(--ink); }
+.upcoming .warn { color: var(--stamp); font-weight: 600; }
+.empty { font-size: 13px; color: var(--ink-3); padding: 10px 12px; border: 1px dashed var(--rule-strong); border-radius: 3px; }
+
+/* ---------- Echo race (left) ---------- */
+.race-list { display: grid; gap: 6px; }
+.race-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px; align-items: center; font-size: 13px; }
+.race-row .tag { font: 600 11px/1 var(--mono); color: var(--carbon); border: 1px solid var(--carbon); padding: 3px 5px; border-radius: 2px; }
+.race-row .who { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-2); }
+.race-row .st { font: 600 11.5px/1 var(--mono); text-transform: uppercase; letter-spacing: .06em; }
+.st.ahead { color: var(--go); } .st.behind { color: var(--stamp); } .st.done { color: var(--ink-3); }
+.race-mult { font: 600 12px var(--mono); color: var(--carbon); }
+
+/* ---------- Log ---------- */
+.log { list-style: none; margin: 0; padding: 0; font-size: 12.5px; }
+.log li {
+  display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 8px;
+  padding: 4px 0; border-bottom: 1px solid var(--rule); color: var(--ink-2);
+}
+.log li time { font: 500 11px/1.5 var(--mono); color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.log li.bad { color: var(--stamp); }
+.log li.good { color: var(--go); }
+.log li.echo { color: var(--carbon); }
+
+/* ---------- Tabs / panels ---------- */
+.tabs {
+  display: flex; gap: 2px; border-bottom: 1px solid var(--ink); overflow-x: auto; scrollbar-width: none;
+}
+.tabs::-webkit-scrollbar { display: none; }
+.tabs button {
+  flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px;
+  padding: 9px 14px 8px; border: 1px solid transparent; border-bottom: 0; border-radius: 3px 3px 0 0;
+  background: transparent; color: var(--ink-2);
+  font-family: var(--display); font-stretch: 80%; font-weight: 700; font-size: 14.5px; letter-spacing: .06em; text-transform: uppercase;
+  margin-bottom: -1px;
+}
+.tabs button:hover { color: var(--ink); }
+.tabs button[aria-selected="true"] { background: var(--sheet); color: var(--ink); border-color: var(--ink); border-bottom: 1px solid var(--sheet); }
+.badge { font: 600 11px/1 var(--mono); padding: 2px 5px; border-radius: 2px; background: var(--ink); color: var(--on-ink); letter-spacing: 0; }
+.badge.carbon { background: var(--carbon); }
+.panel {
+  background: var(--sheet); border: 1px solid var(--ink); border-top: 0; margin-top: -16px;
+  padding: 16px; border-radius: 0 0 3px 3px; display: grid; gap: 14px; min-width: 0;
+}
+.panel-intro { display: grid; gap: 6px; max-width: 68ch; }
+.panel-intro p { color: var(--ink-2); font-size: 14px; }
+.seg { display: inline-flex; border: 1px solid var(--rule-strong); border-radius: 3px; overflow: hidden; }
+.seg button { border: 0; background: transparent; padding: 5px 11px; font: 600 12px/1.2 var(--mono); color: var(--ink-2); }
+.seg button + button { border-left: 1px solid var(--rule-strong); }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--on-ink); }
+.toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
+
+/* ---------- Ventures ---------- */
+.vlist { display: grid; }
+.vrow {
+  display: grid; grid-template-columns: minmax(0, 1fr) 64px minmax(118px, auto); gap: 4px 14px; align-items: center;
+  padding: 10px 0; border-bottom: 1px solid var(--rule);
+}
+.vrow:first-child { border-top: 1px solid var(--rule); }
+.vname { font-weight: 700; font-size: 15px; }
+.vmeta { font: 500 12px/1.4 var(--mono); color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.vmile { display: flex; gap: 3px; margin-top: 5px; align-items: center; }
+.vmile i { width: 14px; height: 4px; background: var(--sheet-2); border: 1px solid var(--rule); }
+.vmile i.reached { border-color: var(--ink-2); }
+.vmile i.bought { background: var(--ink); border-color: var(--ink); }
+.vmile small { font: 500 10.5px var(--mono); color: var(--ink-3); margin-left: 4px; }
+.vcount {
+  font-family: var(--display); font-stretch: 70%; font-weight: 800; font-size: 30px; line-height: 1;
+  text-align: right; font-variant-numeric: tabular-nums;
+}
+.vcount.zero { color: var(--rule-strong); }
+.vbuy {
+  display: grid; gap: 1px; justify-items: end; padding: 6px 10px; border-radius: 3px;
+  border: 1px solid var(--ink); background: var(--ink); color: var(--on-ink); text-align: right;
+}
+.vbuy:hover:not(:disabled) { background: var(--carbon); border-color: var(--carbon); }
+.vbuy .n { font: 600 10.5px/1.1 var(--mono); letter-spacing: .08em; text-transform: uppercase; opacity: .8; }
+.vbuy .c { font: 600 14px/1.2 var(--mono); font-variant-numeric: tabular-nums; }
+.vbuy:disabled { background: transparent; color: var(--ink-3); border: 1px dashed var(--rule-strong); }
+.vrow.teaser .vname { color: var(--ink-3); }
+@media (max-width: 520px) {
+  .vrow { grid-template-columns: minmax(0, 1fr) 40px minmax(96px, auto); gap: 4px 10px; }
+  .vcount { font-size: 24px; }
+  .vmile small { display: none; }
+  .panel { padding: 14px 12px; }
+}
+.vrow.teaser { opacity: .85; }
+
+/* ---------- Upgrades ---------- */
+.ugrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
+.utile {
+  display: grid; gap: 4px; align-content: start; text-align: left; padding: 10px 11px;
+  background: var(--paper); border: 1px solid var(--rule-strong); border-radius: 3px; color: var(--ink);
+}
+.utile:hover:not(:disabled) { border-color: var(--ink); background: var(--sheet-2); }
+.utile .u-kind { font: 500 10px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); }
+.utile .u-name { font-weight: 700; font-size: 14px; }
+.utile .u-eff { font-size: 12.5px; color: var(--ink-2); }
+.utile .u-cost { font: 600 13px var(--mono); margin-top: 2px; font-variant-numeric: tabular-nums; }
+.utile:disabled { opacity: .62; }
+.utile:not(:disabled) .u-cost { color: var(--go); }
+.subtle { color: var(--ink-3); font-size: 13px; }
+
+/* ---------- Echoes ---------- */
+.echo-stats { display: flex; flex-wrap: wrap; gap: 6px 18px; }
+.echo-stats div { display: grid; gap: 2px; }
+.echo-stats dt { font: 500 10px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); }
+.echo-stats dd { margin: 0; font: 600 15px/1.2 var(--mono); color: var(--carbon); }
+.chart-wrap { border: 1px solid var(--rule); background: var(--paper); border-radius: 3px; padding: 8px 8px 4px; }
+#chart { display: block; width: 100%; height: 250px; }
+.chart-key { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 12px; color: var(--ink-2); padding: 4px 4px 2px; }
+.chart-key span { display: inline-flex; align-items: center; gap: 6px; }
+.chart-key svg { flex: 0 0 auto; }
+.echo-list { display: grid; gap: 10px; }
+.echo-card {
+  display: grid; gap: 6px; padding: 12px 14px; border: 1px solid var(--carbon); border-radius: 3px;
+  background: linear-gradient(var(--carbon-soft), var(--carbon-soft)), var(--sheet);
+}
+.echo-card .e-top { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.echo-card .e-name { font-weight: 700; }
+.echo-card .e-name .tag { font: 600 11px/1 var(--mono); color: var(--carbon); margin-right: 6px; }
+.echo-card .e-facts { font: 500 12px/1.45 var(--mono); color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.echo-card .e-bar { height: 4px; background: var(--sheet-2); position: relative; }
+.echo-card .e-bar i { position: absolute; inset: 0 auto 0 0; background: var(--carbon); }
+.echo-card .e-pay { font: 600 13px var(--mono); color: var(--carbon); font-variant-numeric: tabular-nums; }
+.echo-empty { padding: 18px; border: 1px dashed var(--carbon); border-radius: 3px; color: var(--ink-2); font-size: 14px; }
+
+/* ---------- Soul tree ---------- */
+.tree-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px 24px; align-items: flex-end; }
+.tree-head .panel-intro { flex: 1 1 360px; }
+.karma-box { display: grid; justify-items: end; gap: 2px; flex: 0 0 auto; margin-left: auto; }
+.karma-box span { font: 500 10px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); }
+.karma-box strong { font-family: var(--display); font-stretch: 70%; font-weight: 850; font-size: 36px; line-height: 1; color: var(--carbon); font-variant-numeric: tabular-nums; }
+.karma-box small { font: 500 11.5px var(--mono); color: var(--ink-2); }
+.tree-scroll { overflow-x: auto; border: 1px solid var(--rule); border-radius: 3px; background: var(--paper); }
+#tree { display: block; width: 100%; min-width: 700px; height: auto; }
+#tree .ln { fill: none; stroke: var(--rule-strong); stroke-width: 1.5; stroke-dasharray: 4 4; }
+#tree .ln.open { stroke: var(--ink-2); stroke-dasharray: none; }
+#tree .ln.on { stroke: var(--ink); stroke-width: 2.5; stroke-dasharray: none; }
+#tree .brl { font: 700 11px var(--mono); letter-spacing: .14em; fill: var(--ink-3); }
+#tree .node { cursor: pointer; }
+#tree .node rect { fill: var(--paper); stroke: var(--rule-strong); stroke-width: 1.5; stroke-dasharray: 4 3; }
+#tree .node text { fill: var(--ink-3); }
+#tree .node .n-code, #tree .node .n-lvl { font: 600 10.5px var(--mono); }
+#tree .node .n-name { font: 700 11.5px var(--body); }
+#tree .node.open rect { stroke: var(--ink-2); stroke-dasharray: none; fill: var(--sheet); }
+#tree .node.open text { fill: var(--ink); }
+#tree .node.afford rect { stroke: var(--go); stroke-width: 2.5; stroke-dasharray: none; fill: var(--sheet); }
+#tree .node.afford text { fill: var(--ink); }
+#tree .node.afford .n-lvl { fill: var(--go); }
+#tree .node.part rect { stroke: var(--ink); stroke-dasharray: none; fill: var(--sheet-2); }
+#tree .node.part text { fill: var(--ink); }
+#tree .node.part.afford rect { stroke: var(--go); }
+#tree .node.max rect { fill: var(--ink); stroke: var(--ink); stroke-dasharray: none; }
+#tree .node.max text { fill: var(--on-ink); }
+#tree .node.x-branch.part rect, #tree .node.x-branch.max rect { stroke: var(--carbon); }
+#tree .node.x-branch.max rect { fill: var(--carbon); }
+#tree .node.sel rect { stroke-width: 3.5; }
+#tree .node:focus { outline: none; }
+#tree .node:focus-visible rect { stroke: var(--carbon); stroke-width: 3.5; }
+.node-detail {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px 18px; align-items: start;
+  padding: 14px; border: 1px solid var(--ink); border-radius: 3px; background: var(--paper);
+}
+.node-detail .nd-code { font: 600 11px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); }
+.node-detail h3 { font-family: var(--display); font-stretch: 75%; font-weight: 850; font-size: 26px; line-height: 1.05; margin: 4px 0 4px; }
+.node-detail .nd-flavor { font-style: italic; color: var(--ink-2); font-size: 13.5px; }
+.node-detail .nd-eff { display: grid; gap: 2px; margin-top: 8px; font: 500 13px/1.4 var(--mono); }
+.node-detail .nd-eff b { font-weight: 600; color: var(--ink-3); font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; margin-right: 6px; }
+.node-detail .nd-eff .next { color: var(--go); }
+.node-detail .nd-req { color: var(--stamp); font-size: 12.5px; margin-top: 6px; }
+.node-detail .nd-buy { display: grid; justify-items: end; gap: 6px; }
+.node-detail .nd-cost { font: 600 13px var(--mono); color: var(--carbon); }
+@media (max-width: 520px) { .node-detail { grid-template-columns: 1fr; } .node-detail .nd-buy { justify-items: start; } }
+
+/* ---------- Records ---------- */
+.records { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 0 24px; margin: 0; }
+.records div { display: flex; justify-content: space-between; gap: 12px; padding: 7px 0; border-bottom: 1px solid var(--rule); }
+.records dt { color: var(--ink-2); font-size: 13.5px; }
+.records dd { margin: 0; font: 600 13.5px var(--mono); font-variant-numeric: tabular-nums; text-align: right; }
+.settings { display: grid; gap: 12px; }
+.settings .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.settings textarea {
+  width: 100%; min-height: 84px; resize: vertical; padding: 8px; border-radius: 3px;
+  border: 1px solid var(--rule-strong); background: var(--paper); font: 12px/1.4 var(--mono); word-break: break-all;
+}
+.panel h3 { font-family: var(--display); font-stretch: 75%; font-weight: 800; font-size: 14px; letter-spacing: .1em; text-transform: uppercase; margin-top: 8px; }
+
+/* ---------- Opportunity ---------- */
+.opp {
+  position: fixed; z-index: 30; width: 76px; height: 52px; padding: 0; border: 0; background: transparent;
+  animation: bob 1.6s ease-in-out infinite;
+}
+.opp .env {
+  position: absolute; inset: 0; background: var(--manila); border: 1.5px solid var(--manila-edge); border-radius: 2px;
+  box-shadow: 0 8px 18px -8px rgba(0, 0, 0, .5); overflow: hidden;
+}
+.opp .env::before {
+  content: ''; position: absolute; left: -2px; right: -2px; top: -30px; height: 58px;
+  border-bottom: 1.5px solid var(--manila-edge); transform: skewY(0);
+  background: linear-gradient(to bottom right, transparent 49.2%, var(--manila-edge) 49.6%, transparent 50.4%) left / 50% 100% no-repeat,
+              linear-gradient(to bottom left, transparent 49.2%, var(--manila-edge) 49.6%, transparent 50.4%) right / 50% 100% no-repeat;
+}
+.opp .seal {
+  position: absolute; left: 50%; top: 22px; width: 16px; height: 16px; margin-left: -8px; border-radius: 50%;
+  background: var(--stamp); box-shadow: inset 0 0 0 3px rgba(0, 0, 0, .12);
+}
+.opp .lbl {
+  position: absolute; left: 50%; top: 100%; transform: translateX(-50%); margin-top: 6px; white-space: nowrap;
+  font: 600 10px/1 var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--ink);
+  background: var(--sheet); padding: 3px 5px; border: 1px solid var(--rule-strong);
+}
+@keyframes bob { 0%, 100% { transform: translateY(0) rotate(-4deg); } 50% { transform: translateY(-6px) rotate(3deg); } }
+
+/* ---------- Modal ---------- */
+.modal {
+  position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 16px;
+  background: rgba(10, 18, 14, .55); overflow-y: auto;
+}
+.modal-sheet {
+  width: min(600px, 100%); max-height: calc(100vh - 32px); overflow-y: auto;
+  background: var(--sheet); color: var(--ink); border: 1px solid var(--ink); border-radius: 3px;
+  box-shadow: 0 30px 60px -20px rgba(0, 0, 0, .6); position: relative;
+}
+.m-head {
+  display: flex; justify-content: space-between; gap: 12px; padding: 10px 18px; border-bottom: 1px solid var(--ink);
+  font: 500 11px/1.2 var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--ink-2);
+}
+.m-body { padding: 18px; display: grid; gap: 14px; }
+.m-body h2 { font-family: var(--display); font-stretch: 68%; font-weight: 900; font-size: 40px; line-height: .95; text-transform: uppercase; }
+.m-body p { color: var(--ink-2); max-width: 62ch; }
+.m-body ol { margin: 0; padding-left: 22px; display: grid; gap: 10px; color: var(--ink-2); }
+.m-body ol b, .m-body p b { color: var(--ink); }
+.m-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 0 18px; margin: 0; }
+.m-facts div { display: grid; gap: 3px; padding: 8px 0; border-bottom: 1px solid var(--rule); }
+.m-facts dt { font: 500 10px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); }
+.m-facts dd { margin: 0; font: 600 17px/1.2 var(--mono); font-variant-numeric: tabular-nums; }
+.m-facts dd.carbon { color: var(--carbon); }
+.m-facts dd small { font-size: 11px; font-weight: 500; color: var(--ink-3); }
+.m-body h2.evicted { padding-right: 170px; }
+.m-actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; padding-top: 4px; }
+.m-actions .btn { padding: 10px 18px; font-size: 14px; }
+.m-stamp {
+  position: absolute; right: 22px; top: 54px; pointer-events: none;
+  font-family: var(--display); font-stretch: 70%; font-weight: 900; font-size: 28px; letter-spacing: .1em;
+  padding: 4px 14px 2px; border: 4px solid currentColor; border-radius: 5px; color: var(--stamp);
+  transform: rotate(8deg); opacity: .9; animation: stamp2 .4s cubic-bezier(.2, 1.5, .4, 1) both;
+}
+@keyframes stamp2 { from { opacity: 0; transform: rotate(8deg) scale(2.2); } to { opacity: .9; transform: rotate(8deg) scale(1); } }
+.slot-choice { display: grid; gap: 6px; }
+.slot-choice label {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: center;
+  padding: 8px 10px; border: 1px solid var(--rule-strong); border-radius: 3px; cursor: pointer; font-size: 13.5px;
+}
+.slot-choice label:has(input:checked) { border-color: var(--carbon); background: var(--carbon-soft); }
+.slot-choice input { accent-color: var(--carbon); margin: 0; }
+.slot-choice .num { font-size: 12px; color: var(--ink-2); }
+.spark { display: block; width: 100%; height: 70px; border: 1px solid var(--rule); background: var(--paper); border-radius: 3px; }
+
+/* ---------- Toasts ---------- */
+.toasts {
+  position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 16px); transform: translateX(-50%);
+  z-index: 60; display: grid; gap: 8px; width: min(440px, calc(100vw - 32px)); pointer-events: none;
+}
+.toast {
+  background: var(--ink); color: var(--on-ink); padding: 10px 14px; border-radius: 3px; font-size: 13.5px;
+  box-shadow: 0 12px 30px -12px rgba(0, 0, 0, .6); animation: toast-in .25s ease-out both;
+}
+.toast b { font-weight: 700; }
+.toast.carbon { background: var(--carbon); }
+.toast.bad { background: var(--stamp); }
+.toast.out { animation: toast-out .3s ease-in forwards; }
+@keyframes toast-in { from { opacity: 0; transform: translateY(10px); } }
+@keyframes toast-out { to { opacity: 0; transform: translateY(10px); } }
+
+.foot { margin-top: 36px; font: 500 11px/1.5 var(--mono); color: var(--ink-3); letter-spacing: .06em; display: flex; flex-wrap: wrap; gap: 6px 20px; justify-content: space-between; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="masthead">
+    <div class="brand-block">
+      <div class="formno">Form PD-1 &middot; Statement of account, all lives</div>
+      <h1 class="brand">Past Due<span>.</span></h1>
+    </div>
+    <dl class="mast-facts">
+      <div><dt>Life No.</dt><dd id="m-life">001</dd></div>
+      <div><dt>Month</dt><dd id="m-month">1</dd></div>
+      <div><dt>Alive</dt><dd id="m-alive">0:00</dd></div>
+      <div><dt>Karma</dt><dd id="m-karma" class="karma">0</dd></div>
+    </dl>
+    <button id="rebirth-btn" class="btn-rebirth" type="button" disabled>
+      <b>Reincarnate</b>
+      <small id="rebirth-gain">earn $1K first</small>
+    </button>
+  </header>
+
+  <main class="desk">
+    <aside class="ledger" aria-label="This life">
+      <section class="cash o-cash">
+        <div class="label">Cash on hand</div>
+        <div class="cash-num" id="cash">$0</div>
+        <div class="rates">
+          <div><span class="k">Ventures</span><span class="v" id="r-ventures">$0/s</span></div>
+          <div><span class="k">Echoes of past lives</span><span class="v echo" id="r-echo">$0/s</span></div>
+          <div><span class="k">Your pace, all own income</span><span class="v" id="r-pace">$0/s</span></div>
+        </div>
+      </section>
+
+      <div class="card-wrap o-card">
+        <button id="punch" class="timecard" type="button" aria-label="Punch in to earn cash">
+          <span class="tc-head"><span>Time card</span><span id="tc-life">Life No. 001</span></span>
+          <span class="tc-main">Punch in</span>
+          <span class="tc-sub" id="tc-value">+$1 per punch</span>
+          <span class="tc-holes" id="tc-holes" aria-hidden="true"></span>
+          <span class="tc-foot" id="tc-foot">100 punches fill the card</span>
+        </button>
+        <div class="fx" id="fx" aria-hidden="true"></div>
+      </div>
+
+      <section class="standing o-standing" aria-label="Standing">
+        <div class="srow">
+          <span class="k">Strikes</span>
+          <span class="boxes" id="strike-boxes"></span>
+          <span class="note" id="strike-note">3 strikes and you're evicted</span>
+        </div>
+        <div class="srow" id="debt-row" hidden>
+          <span class="k">Debt</span>
+          <span class="debt-amt" id="debt-amt">$0</span>
+          <button class="btn small" id="pay-debt" type="button">Pay down</button>
+          <span class="note">3% interest per 10s. A quarter of your income goes to it. Clearing it removes a strike.</span>
+        </div>
+        <div class="srow" id="boost-row" hidden><span class="k">Active</span><span id="boosts" style="display:flex;gap:6px;flex-wrap:wrap"></span></div>
+      </section>
+
+      <section class="inbox o-inbox" aria-label="Inbox">
+        <div class="sec-head">
+          <h2>Inbox</h2>
+          <label class="toggle" id="autopay-wrap" hidden><input type="checkbox" id="autopay" checked> Direct debit</label>
+        </div>
+        <div id="bills" class="bills"></div>
+        <p class="upcoming" id="upcoming"></p>
+      </section>
+
+      <section class="race o-race" aria-label="Echo race">
+        <div class="sec-head"><h2>Echo race</h2><span class="race-mult" id="race-mult"></span></div>
+        <div id="race-list" class="race-list"></div>
+      </section>
+
+      <section class="o-log" aria-label="Ledger">
+        <div class="sec-head"><h2>Ledger</h2><span class="aside">this life</span></div>
+        <ol id="log" class="log"></ol>
+      </section>
+    </aside>
+
+    <section class="work" aria-label="Work">
+      <nav class="tabs" role="tablist">
+        <button role="tab" type="button" data-tab="ventures" aria-selected="true">Ventures</button>
+        <button role="tab" type="button" data-tab="upgrades" aria-selected="false">Upgrades <span class="badge" id="b-upgrades" hidden></span></button>
+        <button role="tab" type="button" data-tab="echoes" aria-selected="false">Echoes <span class="badge carbon" id="b-echoes" hidden></span></button>
+        <button role="tab" type="button" data-tab="tree" aria-selected="false">Soul Tree <span class="badge carbon" id="b-tree" hidden></span></button>
+        <button role="tab" type="button" data-tab="records" aria-selected="false">Records</button>
+      </nav>
+
+      <div class="panel" id="p-ventures" role="tabpanel">
+        <div class="toolbar">
+          <p class="subtle">Each venture earns on its own. Prices rise 15% with every one you own.</p>
+          <div class="seg" id="buy-amt" role="group" aria-label="Buy amount">
+            <button type="button" data-amt="1" aria-pressed="true">&times;1</button>
+            <button type="button" data-amt="10" aria-pressed="false">&times;10</button>
+            <button type="button" data-amt="100" aria-pressed="false">&times;100</button>
+            <button type="button" data-amt="max" aria-pressed="false">Max</button>
+          </div>
+        </div>
+        <div class="vlist" id="vlist"></div>
+      </div>
+
+      <div class="panel" id="p-upgrades" role="tabpanel" hidden>
+        <div class="toolbar">
+          <p class="subtle" id="u-summary">Upgrades last until the end of this life.</p>
+          <button class="btn" id="buy-all" type="button">Buy all affordable</button>
+        </div>
+        <div class="ugrid" id="ugrid"></div>
+      </div>
+
+      <div class="panel" id="p-echoes" role="tabpanel" hidden>
+        <div class="panel-intro">
+          <h2>Echoes</h2>
+          <p>Every life you finish is kept as an echo. An echo replays that life's own earnings, second by second, from the moment your current life begins, scaled to your current karma and Soul Tree so the race is fair. It pays you a share of what it earned at the same age. You get a bonus for every echo you are out-earning, and an echo you outlive counts as beaten.</p>
+        </div>
+        <dl class="echo-stats" id="echo-stats"></dl>
+        <div class="chart-wrap">
+          <canvas id="chart" aria-label="Income of this life compared with your echoes"></canvas>
+          <div class="chart-key" id="chart-key"></div>
+        </div>
+        <div class="echo-list" id="echo-list"></div>
+      </div>
+
+      <div class="panel" id="p-tree" role="tabpanel" hidden>
+        <div class="tree-head">
+          <div class="panel-intro">
+            <h2>Soul Tree</h2>
+            <p>Karma carries over from life to life. Spend it here at any time. Each point of karma you have ever earned also adds 1% to all income, with diminishing returns past +100%. Your karma total is the cube root of everything you have ever earned, in thousands, so each life adds what it lifts that total by.</p>
+          </div>
+          <div class="karma-box"><span>Karma to spend</span><strong id="t-karma">0</strong><small id="t-weight">Soul weight +0%</small></div>
+        </div>
+        <div class="tree-scroll"><svg id="tree" viewBox="0 0 960 612" role="group" aria-label="Soul tree"></svg></div>
+        <div class="node-detail" id="node-detail"></div>
+      </div>
+
+      <div class="panel" id="p-records" role="tabpanel" hidden>
+        <h2>Records</h2>
+        <dl class="records" id="records"></dl>
+        <h3>Settings</h3>
+        <div class="settings">
+          <div class="row">
+            <label class="toggle"><input type="checkbox" id="set-sci"> Scientific notation</label>
+            <button class="btn ghost small" id="btn-help" type="button">How to play</button>
+          </div>
+          <div class="row">
+            <button class="btn ghost small" id="btn-export" type="button">Copy save code</button>
+            <button class="btn ghost small" id="btn-import" type="button">Load a save code</button>
+            <span class="note" id="save-note">Progress saves in this browser every few seconds.</span>
+          </div>
+          <div id="import-box" class="settings" hidden>
+            <label for="save-text" class="note">Paste a save code, then load it. This replaces your current progress.</label>
+            <textarea id="save-text" spellcheck="false"></textarea>
+            <div class="row"><button class="btn small" id="btn-import-go" type="button">Load this save</button><button class="btn ghost small" id="btn-import-cancel" type="button">Cancel</button></div>
+          </div>
+          <div class="row">
+            <button class="btn danger small" id="btn-reset" type="button">Erase all progress</button>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <span>Past Due &middot; an incremental game about rent, rebirth and the people you used to be</span>
+    <span id="foot-save">Not saved yet</span>
+  </footer>
+</div>
+
+<button id="opp" class="opp" type="button" hidden aria-label="Open the opportunity envelope">
+  <span class="env"></span><span class="seal"></span><span class="lbl">Opportunity</span>
+</button>
+
+<div id="modal" class="modal" hidden>
+  <div class="modal-sheet" role="dialog" aria-modal="true" aria-labelledby="modal-title" id="modal-sheet"></div>
+</div>
+<div id="toasts" class="toasts" aria-live="polite"></div>
+
+<script>
+(function () {
+'use strict';
+
+/* =====================================================================
+   Data
+   ===================================================================== */
+const MONTH = 60;            // seconds between rent bills
+const RENT_BASE = 40;
+const RENT_ACCEL = 0.01;    // rent's monthly rise grows by one point every month
+const TAX_PERIOD = 150;
+const DUE_WINDOW = 40;       // seconds to pay a bill after it arrives
+const REC_INTERVAL = 5;      // seconds per recorded sample
+const REC_MAX = 1000;
+const SAVE_KEY = 'pastdue.save.v1';
+const MAX_OFFLINE = 8 * 3600;
+
+const VENTURES = [
+  { id: 'lemon',   name: 'Lemonade Stand',    plural: 'Lemonade Stands',    cost: 15,     rate: 0.1,
+    ups: ['Fresh Lemons', 'Hand-Painted Sign', 'Pink Lemonade', 'Ice Machine', 'Artisanal Straws', 'Lemon Orchard', 'Citrus Cartel'], title: 'the Lemonade Kid' },
+  { id: 'paper',   name: 'Paper Route',       plural: 'Paper Routes',       cost: 100,    rate: 1,
+    ups: ['Better Bicycle', 'Rubber Bands', 'Sunday Edition', 'Route Map', 'Electric Scooter', 'Delivery Drone', 'Print Monopoly'], title: 'the Paper Carrier' },
+  { id: 'truck',   name: 'Food Truck',        plural: 'Food Trucks',        cost: 1100,   rate: 8,
+    ups: ['Secret Sauce', 'Social Media Page', 'Festival Permit', 'Second Grill', 'Late-Night Menu', 'Truck Fleet', 'Michelin Mention'], title: 'the Food Truck King' },
+  { id: 'laund',   name: 'Laundromat',        plural: 'Laundromats',        cost: 12000,  rate: 47,
+    ups: ['Coin Upgrade', 'Free Wi-Fi', 'Folding Service', 'Industrial Dryers', 'Detergent Deal', 'Laundry App', '24-Hour Chain'], title: 'the Laundromat Mogul' },
+  { id: 'duplex',  name: 'Rental Duplex',     plural: 'Rental Duplexes',    cost: 130000, rate: 260,
+    ups: ['Fresh Paint', 'Tenant Screening', 'Washer Hookups', 'Granite Countertops', 'Rooftop Garden', 'Property Manager', 'Block Buyout'], title: 'the Landlord' },
+  { id: 'franch',  name: 'Burger Franchise',  plural: 'Burger Franchises',  cost: 1.4e6,  rate: 1400,
+    ups: ['Value Menu', 'Drive-Thru', 'Kids Meal Toys', 'All-Day Breakfast', 'Mascot Costume', 'Loyalty App', 'Global Menu'], title: 'the Burger Baron' },
+  { id: 'startup', name: 'App Startup',       plural: 'App Startups',       cost: 2e7,    rate: 7800,
+    ups: ['Seed Round', 'Ping-Pong Table', 'Series A', 'The Pivot', 'Growth Team', 'Unicorn Status', 'IPO'], title: 'the Founder' },
+  { id: 'hedge',   name: 'Hedge Fund',        plural: 'Hedge Funds',        cost: 3.3e8,  rate: 44000,
+    ups: ['Market Terminal', 'Quant Team', 'Leverage', 'Dark Pool', 'Algorithmic Desk', 'Offshore Branch', 'Too Big to Fail'], title: 'the Quant' },
+  { id: 'media',   name: 'Media Empire',      plural: 'Media Empires',      cost: 5.1e9,  rate: 260000,
+    ups: ['Streaming Service', 'Reality Show', 'Podcast Network', 'Prestige Drama', 'Sports Rights', 'Theme Park', 'Cinematic Universe'], title: 'the Media Mogul' },
+  { id: 'mega',    name: 'Megacorp',          plural: 'Megacorps',          cost: 7.5e10, rate: 1.6e6,
+    ups: ['Synergy Memo', 'Lobbyists', 'Vertical Integration', 'Company Town', 'Private Security', 'Moon Office', 'Brand Religion'], title: 'the Chief Executive' },
+  { id: 'orbit',   name: 'Orbital Mine',      plural: 'Orbital Mines',      cost: 1e12,   rate: 1e7,
+    ups: ['Asteroid Survey', 'Ion Drills', 'Zero-G Refinery', 'Space Elevator', 'Mining Swarm', 'Dyson Contract', 'Belt Monopoly'], title: 'the Asteroid Miner' },
+  { id: 'multi',   name: 'Multiverse Office', plural: 'Multiverse Offices', cost: 1.4e13, rate: 6.5e7,
+    ups: ['Portal License', 'Alternate Interns', 'Timeline Arbitrage', 'Paradox Insurance', 'Infinite Shifts', 'Self-Subcontracting', 'Omniversal Merger'], title: 'the Multiversal' },
+];
+const VBY = Object.fromEntries(VENTURES.map(v => [v.id, v]));
+const MILESTONES = [1, 5, 25, 50, 100, 150, 200];
+const MILESTONE_COST = [10, 50, 500, 5e4, 5e6, 5e8, 5e10];
+
+const CLICK_UPS = [
+  { id: 'click:0', name: 'Comfortable Shoes', cost: 100,  x2: true },
+  { id: 'click:1', name: 'Coffee Habit',      cost: 600,  x2: true },
+  { id: 'click:2', name: 'Second Job',        cost: 1e4,  pct: 0.01 },
+  { id: 'click:3', name: 'Night Classes',     cost: 1.5e5, x2: true },
+  { id: 'click:4', name: 'Promotion',         cost: 1e7,  pct: 0.01 },
+  { id: 'click:5', name: 'Corner Office',     cost: 1e9,  x2: true, pct: 0.01 },
+  { id: 'click:6', name: 'Board Seat',        cost: 1e11, pct: 0.01 },
+  { id: 'click:7', name: 'Golden Parachute',  cost: 1e13, x2: true, pct: 0.01 },
+];
+const BILL_UPS = [
+  { id: 'bill:0', name: 'Roommate',              cost: 400,  rent: 0.75,    eff: 'Rent −25%' },
+  { id: 'bill:1', name: 'Coupon Binder',         cost: 5000, surprise: 0.6, eff: 'Surprise expenses −40%' },
+  { id: 'bill:2', name: 'Accountant',            cost: 8e4,  tax: 0.7,      eff: 'Taxes −30%' },
+  { id: 'bill:3', name: 'Rent-Stabilized Lease', cost: 5e6,  rent: 0.7,     eff: 'Rent −30%' },
+  { id: 'bill:4', name: 'Tax Attorney',          cost: 1e9,  tax: 0.7,      eff: 'Taxes −30%' },
+  { id: 'bill:5', name: 'Buy the Building',      cost: 1e12, rent: 0.5,     eff: 'Rent −50%' },
+];
+
+const SURPRISES = ['Car repair', 'Dentist visit', 'Parking ticket', 'Cracked phone screen', 'Vet bill', 'Burst pipe',
+  'Wedding gift', 'Laptop died', 'Speeding ticket', 'Root canal', 'Lost deposit', 'Flight home', 'Broken boiler', 'Towing fee'];
+
+const SEED = [0, 150, 3e4, 5e6];
+
+const SKILLS = [
+  { id: 'root', br: 'core', code: 'A0', name: 'Awakening', max: 1, x: 480, y: 44, req: [], cost: () => 1,
+    flavor: 'Every soul eventually notices it has done this before.',
+    eff: l => `All income ×${l ? '1.25' : '1'}` },
+
+  { id: 'h_grease', br: 'hustle', code: 'H1', name: 'Elbow Grease', max: 5, x: 120, y: 160, req: ['root'], cost: l => 1 * 2 ** l,
+    flavor: 'Work harder. It is not complicated.', eff: l => `Punch value +${l * 100}%` },
+  { id: 'h_muscle', br: 'hustle', code: 'H2', name: 'Muscle Memory', max: 3, x: 62, y: 260, req: ['h_grease'], cost: l => 3 * 3 ** l,
+    flavor: 'Your hands remember what the business knows.', eff: l => `Each punch adds ${l}% of venture income` },
+  { id: 'h_lucky', br: 'hustle', code: 'H3', name: 'Lucky Break', max: 3, x: 178, y: 260, req: ['h_grease'], cost: l => 3 * 3 ** l,
+    flavor: 'Some days the till comes up heavy.', eff: l => `${l * 4}% chance a punch pays ×12` },
+  { id: 'h_help', br: 'hustle', code: 'H4', name: 'Hired Help', max: 5, x: 62, y: 360, req: ['h_muscle'], cost: l => 5 * 2 ** l,
+    flavor: 'Someone punches in for you. Nobody checks.', eff: l => `${l} automatic punch${l === 1 ? '' : 'es'} per second` },
+  { id: 'h_rush', br: 'hustle', code: 'H5', name: 'Adrenaline', max: 1, x: 178, y: 360, req: ['h_lucky'], cost: () => 15,
+    flavor: 'Fill a whole time card and something wakes up.', eff: l => l ? 'A full card starts a 15s Rush: punches ×5, ventures ×1.5' : 'A full card does nothing' },
+  { id: 'h_cap', br: 'hustle', code: 'H6', name: 'Workaholic', max: 1, x: 120, y: 460, req: ['h_help', 'h_rush'], cost: () => 60,
+    flavor: 'You stopped going home a few lives ago.', eff: l => l ? 'Punches ×3, and Hired Help fills the card' : 'No effect yet' },
+
+  { id: 'e_seed', br: 'enterprise', code: 'E1', name: 'Seed Money', max: 3, x: 360, y: 160, req: ['root'], cost: l => [1, 6, 30][l],
+    flavor: 'Be born with something under the mattress.', eff: l => `Start each life with ${money(SEED[l])}` },
+  { id: 'e_bulk', br: 'enterprise', code: 'E2', name: 'Bulk Buyer', max: 5, x: 302, y: 260, req: ['e_seed'], cost: l => 2 * 2 ** l,
+    flavor: 'You know a guy. He gives you a price.', eff: l => `Ventures cost ${l * 4}% less` },
+  { id: 'e_synergy', br: 'enterprise', code: 'E3', name: 'Synergy', max: 3, x: 418, y: 260, req: ['e_seed'], cost: l => 3 * 3 ** l,
+    flavor: 'Every business you run feeds the others.', eff: l => `+${l * 2}% income per venture type you own` },
+  { id: 'e_night', br: 'enterprise', code: 'E4', name: 'Night Shift', max: 3, x: 302, y: 360, req: ['e_bulk'], cost: l => 6 * 3 ** l,
+    flavor: 'The shop stays open while you sleep.', eff: l => `Ventures earn ${25 + 25 * l}% while you are away` },
+  { id: 'e_master', br: 'enterprise', code: 'E5', name: 'Master Craft', max: 1, x: 418, y: 360, req: ['e_synergy'], cost: () => 20,
+    flavor: 'You have done this enough times to do it well.', eff: l => `Milestone upgrades give ×${l ? '2.25' : '2'}` },
+  { id: 'e_cap', br: 'enterprise', code: 'E6', name: 'Monopoly', max: 1, x: 360, y: 460, req: ['e_night', 'e_master'], cost: () => 60,
+    flavor: 'Why compete when you can own the street?', eff: l => l ? 'Ventures ×2, and +10% income per type with 100 owned' : 'No effect yet' },
+
+  { id: 'f_autopay', br: 'frugality', code: 'F1', name: 'Direct Debit', max: 1, x: 600, y: 160, req: ['root'], cost: () => 1,
+    flavor: 'Set it and forget it. Mostly.', eff: l => l ? 'Bills pay themselves when you can afford them' : 'Bills are paid by hand' },
+  { id: 'f_haggle', br: 'frugality', code: 'F2', name: 'Haggler', max: 5, x: 542, y: 260, req: ['f_autopay'], cost: l => 2 * 2 ** l,
+    flavor: 'Everything is negotiable if you ask twice.', eff: l => `All bills −${l * 8}%` },
+  { id: 'f_rent', br: 'frugality', code: 'F3', name: 'Rent Control', max: 3, x: 658, y: 260, req: ['f_autopay'], cost: l => 4 * 3 ** l,
+    flavor: 'Lobby the city council. Every life. Forever.', eff: l => `Rent starts out rising ${[20, 17, 14, 11][l]}% a month` },
+  { id: 'f_credit', br: 'frugality', code: 'F4', name: 'Good Credit', max: 2, x: 542, y: 360, req: ['f_haggle'], cost: l => 8 * 3 ** l,
+    flavor: 'A long history of paying late, but paying.', eff: l => `${3 + l} strikes before eviction; an evicted life counts ${50 + 25 * l}% toward karma` },
+  { id: 'f_tax', br: 'frugality', code: 'F5', name: 'Loopholes', max: 3, x: 658, y: 360, req: ['f_rent'], cost: l => 6 * 3 ** l,
+    flavor: 'The tax code is long. Somebody should read it.', eff: l => `Tax rate ${[20, 15, 10, 5][l]}%` },
+  { id: 'f_cap', br: 'frugality', code: 'F6', name: 'Landlord', max: 1, x: 600, y: 460, req: ['f_credit', 'f_tax'], cost: () => 70,
+    flavor: 'Sublet the spare room. Then the building.', eff: l => l ? 'Earn 1% of your current rent every second' : 'No effect yet' },
+
+  { id: 'x_slot', br: 'echoes', code: 'X1', name: 'Echo Chamber', max: 3, x: 840, y: 160, req: ['root'], cost: l => [2, 10, 50][l],
+    flavor: 'Room for more of the people you used to be.', eff: l => `${1 + l} echo slot${l ? 's' : ''}` },
+  { id: 'x_power', br: 'echoes', code: 'X2', name: 'Resonance', max: 5, x: 782, y: 260, req: ['x_slot'], cost: l => 3 * 2 ** l,
+    flavor: 'Your past lives speak up.', eff: l => `Echoes pay you ${20 + 5 * l}% of what they earned` },
+  { id: 'x_rival', br: 'echoes', code: 'X3', name: 'Rivalry', max: 3, x: 898, y: 260, req: ['x_slot'], cost: l => 3 * 3 ** l,
+    flavor: 'Beat your old self. Feel great about it.', eff: l => `+${20 + 10 * l}% income per echo you out-earn` },
+  { id: 'x_dejavu', br: 'echoes', code: 'X4', name: 'Déjà Vu', max: 3, x: 782, y: 360, req: ['x_power'], cost: l => 8 * 3 ** l,
+    flavor: 'You have seen this part before. Skip ahead.', eff: l => `Echoes replay at ${1 + 0.25 * l}× speed: richer sooner, but harder to beat and over sooner` },
+  { id: 'x_linger', br: 'echoes', code: 'X5', name: 'Lingering', max: 2, x: 898, y: 360, req: ['x_rival'], cost: l => [10, 40][l],
+    flavor: 'Some lives do not quite end.', eff: l => l ? `Finished echoes keep paying ${20 * l}% of their final rate` : 'Finished echoes go quiet' },
+  { id: 'x_cap', br: 'echoes', code: 'X6', name: 'Chorus', max: 1, x: 840, y: 460, req: ['x_dejavu', 'x_linger'], cost: () => 80,
+    flavor: 'Out-earn them all and they sing along.', eff: l => l ? 'Echoes you are beating pay double' : 'No effect yet' },
+
+  { id: 'omega', br: 'core', code: 'Ω', name: 'Transcendence', max: Infinity, x: 480, y: 566, req: ['h_cap', 'e_cap', 'f_cap', 'x_cap'], reqAny: true,
+    cost: l => Math.round(100 * 1.6 ** l),
+    flavor: 'There is always another life.', eff: l => `All income ×${fmtMult(1.25 ** l)}` },
+];
+const SKBY = Object.fromEntries(SKILLS.map(k => [k.id, k]));
+const BRANCHES = [
+  { id: 'hustle', label: 'HUSTLE', x: 120 },
+  { id: 'enterprise', label: 'ENTERPRISE', x: 360 },
+  { id: 'frugality', label: 'FRUGALITY', x: 600 },
+  { id: 'echoes', label: 'ECHOES', x: 840 },
+];
+
+/* =====================================================================
+   Formatting
+   ===================================================================== */
+const SUF = ['', 'K', 'M', 'B', 'T', 'Qa', 'Qi', 'Sx', 'Sp', 'Oc', 'No', 'Dc', 'UDc', 'DDc', 'TDc', 'QaDc', 'QiDc', 'SxDc', 'SpDc', 'OcDc', 'NoDc', 'Vg'];
+function num(n) {
+  if (n !== n) return '0';
+  if (!isFinite(n)) return '∞';
+  const neg = n < 0; n = Math.abs(n);
+  let s;
+  if (n < 1000) {
+    if (n >= 100) s = String(Math.floor(n));
+    else if (n >= 10) s = (Math.floor(n * 10) / 10).toFixed(1);
+    else s = (Math.floor(n * 100) / 100).toFixed(2);
+    s = s.replace(/\.0+$/, '').replace(/(\.\d)0$/, '$1');
+  } else {
+    const ex = Math.floor(Math.log10(n) + 1e-9);
+    const e = Math.floor(ex / 3);
+    if ((S && S.settings && S.settings.sci) || e >= SUF.length) {
+      const m = Math.floor(n / 10 ** ex * 100) / 100;
+      s = m.toFixed(2) + 'e' + ex;
+    } else {
+      let v = n / 10 ** (3 * e);
+      if (v >= 1000) { v /= 1000; }
+      s = v >= 100 ? Math.floor(v).toFixed(0) : v >= 10 ? (Math.floor(v * 10) / 10).toFixed(1) : (Math.floor(v * 100) / 100).toFixed(2);
+      s += SUF[e];
+    }
+  }
+  return (neg ? '−' : '') + s;
+}
+function money(n) { return (n < 0 ? '−$' : '$') + num(Math.abs(n)); }
+function rate(n) { return money(n) + '/s'; }
+function fmtMult(m) { return m >= 1000 ? num(m) : (Math.round(m * 100) / 100).toString(); }
+function clock(sec) {
+  sec = Math.max(0, Math.floor(sec));
+  const h = Math.floor(sec / 3600), m = Math.floor(sec / 60) % 60, s = sec % 60;
+  return h ? `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}` : `${m}:${String(s).padStart(2, '0')}`;
+}
+function dur(sec) {
+  sec = Math.max(0, Math.floor(sec));
+  if (sec < 60) return `${sec}s`;
+  if (sec < 3600) return `${Math.floor(sec / 60)}m ${String(sec % 60).padStart(2, '0')}s`;
+  return `${Math.floor(sec / 3600)}h ${String(Math.floor(sec / 60) % 60).padStart(2, '0')}m`;
+}
+function pad3(n) { return String(n).padStart(3, '0'); }
+function esc(s) { return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+const $ = (sel, root = document) => root.querySelector(sel);
+function setText(el, s) { if (el && el.textContent !== s) el.textContent = s; }
+function setDis(el, d) { if (el && el.disabled !== d) el.disabled = d; }
+function round4(x) { return x > 0 ? Number(x.toPrecision(4)) : 0; }
+
+/* =====================================================================
+   State
+   ===================================================================== */
+let S = null;
+
+function newState() {
+  return {
+    v: 1, life: 1, karma: 0, karmaTotal: 0, karmaBase: 0, skills: {}, echoes: [],
+    stats: { allTime: 0, clicks: 0, lives: 0, bestLife: 0, longest: 0, billsPaid: 0, billsMissed: 0, evictions: 0, opps: 0, started: Date.now() },
+    settings: { autopay: true, sci: false, buyAmt: '1' },
+    introSeen: false, lastSeen: Date.now(), billSeq: 0,
+  };
+}
+function freshLife() {
+  S.money = SEED[lv('e_seed')] || 0;
+  S.t = 0; S.month = 0;
+  S.nextRent = MONTH; S.nextTax = TAX_PERIOD;
+  S.nextSurprise = 150 + Math.random() * 80;
+  S.nextOpp = 50 + Math.random() * 60;
+  S.ventures = {}; S.ups = {};
+  S.bills = []; S.debt = 0; S.strikes = 0; S.taxBase = 0;
+  S.lifeEarned = 0; S.lifeOwn = 0; S.clicks = 0; S.card = 0;
+  S.rec = { interval: REC_INTERVAL, samples: [], acc: 0, accT: 0 };
+  S.pace = 0; S.paceAcc = 0; S.boosts = []; S.opp = null; S.helpAcc = 0;
+  S.outlived = {};
+  S.log = [];
+}
+
+function lv(id) { return (S && S.skills[id]) || 0; }
+function owned(id) { return S.ventures[id] || 0; }
+function hasUp(id) { return !!S.ups[id]; }
+function boost(kind) { return S.boosts.some(b => b.kind === kind && b.until > S.t); }
+
+/* =====================================================================
+   Economy
+   ===================================================================== */
+const C = { race: 1, ahead: 0, echo: 0, es: [] };
+
+function echoSlots() { return 1 + lv('x_slot'); }
+function echoPower() { return 0.20 + 0.05 * lv('x_power'); }
+function echoSpeed() { return 1 + 0.25 * lv('x_dejavu'); }
+function rivalryPer() { return 0.20 + 0.10 * lv('x_rival'); }
+function maxStrikes() { return 3 + lv('f_credit'); }
+function offlineRate() { return 0.25 + 0.25 * lv('e_night'); }
+function milestoneMult() { return lv('e_master') ? 2.25 : 2; }
+function typesOwned() { let n = 0; for (const v of VENTURES) if (owned(v.id) > 0) n++; return n; }
+function typesAt100() { let n = 0; for (const v of VENTURES) if (owned(v.id) >= 100) n++; return n; }
+
+function ventureMult(v) {
+  let bought = 0;
+  for (let i = 0; i < MILESTONES.length; i++) if (S.ups[v.id + ':' + i]) bought++;
+  return milestoneMult() ** bought * (lv('e_cap') ? 2 : 1);
+}
+// Permanent multipliers from karma and the Soul Tree. Echoes are recorded divided by
+// this and replayed multiplied by it, so a past life always replays in today's terms.
+// Soul weight: +1% per karma up to +100%, then it grows with the square root.
+function soulWeight(k) { return k <= 100 ? 1 + 0.01 * k : 2 * Math.sqrt(k / 100); }
+function permMult() {
+  let m = soulWeight(S.karmaTotal);
+  if (lv('root')) m *= 1.25;
+  m *= 1.25 ** lv('omega');
+  return m;
+}
+function globalMult() {
+  let m = permMult();
+  m *= 1 + 0.02 * lv('e_synergy') * typesOwned();
+  if (lv('e_cap')) m *= 1 + 0.1 * typesAt100();
+  m *= C.race;
+  return m;
+}
+function ventureRate(v) { return owned(v.id) * v.rate * ventureMult(v); }
+function passiveRate(noBoost) {
+  let r = 0;
+  for (const v of VENTURES) r += ventureRate(v);
+  r *= globalMult();
+  if (!noBoost) {
+    if (boost('boom')) r *= 7;
+    if (boost('rush')) r *= 1.5;
+  }
+  return r;
+}
+function clickParts() {
+  let mult = 1, pct = 0;
+  for (const u of CLICK_UPS) if (hasUp(u.id)) { if (u.x2) mult *= 2; if (u.pct) pct += u.pct; }
+  mult *= 1 + lv('h_grease');
+  if (lv('h_cap')) mult *= 3;
+  pct += 0.01 * lv('h_muscle');
+  return { mult, pct };
+}
+function clickValue() {
+  const { mult, pct } = clickParts();
+  let v = mult * globalMult();
+  if (boost('viral')) v *= 20;
+  if (boost('rush')) v *= 5;
+  return v + pct * passiveRate();
+}
+function billUpMult(key) { let m = 1; for (const u of BILL_UPS) if (u[key] && hasUp(u.id)) m *= u[key]; return m; }
+function billMult() { return 1 - 0.08 * lv('f_haggle'); }
+function rentStart() { return [0.20, 0.17, 0.14, 0.11][lv('f_rent')]; }
+function rentRiseAt(m) { return rentStart() + RENT_ACCEL * m; }
+function rentAmount(m) {
+  let lg = 0;
+  for (let k = 0; k < m; k++) lg += Math.log(1 + rentRiseAt(k));
+  return RENT_BASE * Math.exp(lg) * billMult() * billUpMult('rent');
+}
+function taxRate() { return [0.2, 0.15, 0.1, 0.05][lv('f_tax')] * billUpMult('tax'); }
+// Karma works like a lifetime total: all the money you have ever earned, cube-rooted.
+// A life adds whatever it lifts that total by. An evicted life only partly counts.
+function evictShare() { return 0.5 + 0.25 * lv('f_credit'); }
+function karmaFor(earned) { return Math.floor(Math.cbrt(Math.max(0, earned) / 1000)); }
+function karmaGain(evicted) {
+  const counted = S.lifeEarned * (evicted ? evictShare() : 1);
+  return Math.max(0, karmaFor(S.karmaBase + counted) - S.karmaTotal);
+}
+function nextKarmaAt() {
+  const g = karmaGain(false);
+  return Math.max(0, 1000 * (S.karmaTotal + g + 1) ** 3 - S.karmaBase);
+}
+
+function rateAt(samples, interval, tau) {
+  const n = samples.length;
+  if (!n) return 0;
+  const x = tau / interval - 0.5;
+  if (x <= 0) return samples[0];
+  if (x >= n - 1) return samples[n - 1];
+  const i = Math.floor(x), f = x - i;
+  return samples[i] * (1 - f) + samples[i + 1] * f;
+}
+
+function refreshEchoes() {
+  const spd = echoSpeed(), pw = echoPower(), lg = lv('x_linger'), chorus = lv('x_cap'), pm = permMult();
+  let ahead = 0, inc = 0;
+  C.es = S.echoes.map(e => {
+    const tau = S.t * spd;
+    const playing = tau < e.length;
+    const r = pm * (playing ? rateAt(e.samples, e.interval, tau) : (lg ? e.finalRate * 0.2 * lg : 0));
+    const isAhead = playing ? S.pace > r : true;
+    if (isAhead) ahead++;
+    const p = pw * (chorus && isAhead ? 2 : 1);
+    const pay = r * p;
+    inc += pay;
+    return { e, tau, playing, rate: r, ahead: isAhead, pay, power: p };
+  });
+  C.ahead = ahead;
+  C.race = 1 + rivalryPer() * ahead;
+  C.echo = inc;
+}
+
+/* ---------- earning ---------- */
+function garnish(x) {
+  if (S.debt <= 0 || x <= 0) return x;
+  const g = Math.min(S.debt, x * 0.25);
+  S.debt -= g;
+  if (S.debt < 0.005) clearDebt();
+  return x - g;
+}
+function earnOwn(x) {
+  if (!(x > 0)) return;
+  S.lifeEarned += x; S.lifeOwn += x; S.taxBase += x; S.stats.allTime += x;
+  S.rec.acc += x / permMult(); S.paceAcc += x;
+  S.money += garnish(x);
+}
+function earnOther(x, taxed) {
+  if (!(x > 0)) return;
+  S.lifeEarned += x; S.stats.allTime += x;
+  if (taxed) S.taxBase += x;
+  S.money += garnish(x);
+}
+function clearDebt() {
+  S.debt = 0;
+  if (S.strikes > 0) {
+    S.strikes--;
+    addLog('Debt cleared. One strike removed.', 'good');
+  } else addLog('Debt cleared.', 'good');
+}
+
+/* ---------- punching ---------- */
+function punch(auto, ev) {
+  let v = clickValue();
+  const lucky = lv('h_lucky') > 0 && Math.random() < 0.04 * lv('h_lucky');
+  if (lucky) v *= 12;
+  earnOwn(v);
+  S.clicks++; S.stats.clicks++;
+  if (!auto || lv('h_cap')) {
+    S.card++;
+    if (S.card >= 100) {
+      S.card = 0;
+      if (lv('h_rush')) { addBoost('rush', 15); addLog('Time card full. Rush for 15s.', 'good'); }
+    }
+  }
+  if (!auto) floatText(ev, '+' + money(v), lucky);
+}
+function addBoost(kind, secs) {
+  S.boosts = S.boosts.filter(b => b.kind !== kind);
+  S.boosts.push({ kind, until: S.t + secs, len: secs });
+}
+
+/* ---------- buying ---------- */
+function ventureDiscount() { return 1 - 0.04 * lv('e_bulk'); }
+function ventureCost(v, n) {
+  const p = v.cost * ventureDiscount() * 1.15 ** owned(v.id);
+  return p * (1.15 ** n - 1) / 0.15;
+}
+function maxAffordable(v) {
+  const p = v.cost * ventureDiscount() * 1.15 ** owned(v.id);
+  if (S.money < p) return 0;
+  let n = Math.floor(Math.log(S.money * 0.15 / p + 1) / Math.log(1.15));
+  while (n > 0 && ventureCost(v, n) > S.money) n--;
+  return n;
+}
+function buyCount(v) {
+  const a = S.settings.buyAmt;
+  if (a === 'max') return Math.max(1, maxAffordable(v));
+  return Number(a) || 1;
+}
+function buyVenture(id) {
+  const v = VBY[id];
+  const n = buyCount(v);
+  const c = ventureCost(v, n);
+  if (c > S.money) return;
+  S.money -= c;
+  S.ventures[id] = owned(id) + n;
+  refreshEchoes();
+  render();
+}
+
+function allUpgrades() {
+  const list = [];
+  for (const v of VENTURES) {
+    MILESTONES.forEach((m, i) => {
+      list.push({ id: v.id + ':' + i, kind: v.name, name: v.ups[i], cost: v.cost * MILESTONE_COST[i],
+        eff: `${v.plural} earn ×${milestoneMult()}`, show: () => owned(v.id) >= m });
+    });
+  }
+  for (const u of CLICK_UPS) {
+    const parts = [];
+    if (u.x2) parts.push('Punches ×2');
+    if (u.pct) parts.push(`Punches add ${u.pct * 100}% of venture income`);
+    list.push({ id: u.id, kind: 'Time card', name: u.name, cost: u.cost, eff: parts.join('. '), show: () => S.lifeEarned >= u.cost * 0.3 });
+  }
+  for (const u of BILL_UPS) {
+    list.push({ id: u.id, kind: 'Household', name: u.name, cost: u.cost, eff: u.eff, show: () => S.lifeEarned >= u.cost * 0.3 });
+  }
+  return list;
+}
+const UPGRADES = allUpgrades();
+const UBY = Object.fromEntries(UPGRADES.map(u => [u.id, u]));
+function availableUpgrades() {
+  return UPGRADES.filter(u => !S.ups[u.id] && u.show()).sort((a, b) => a.cost - b.cost);
+}
+function buyUpgrade(id) {
+  const u = UBY[id];
+  if (!u || S.ups[id] || S.money < u.cost) return false;
+  S.money -= u.cost;
+  S.ups[id] = 1;
+  refreshEchoes();
+  return true;
+}
+
+/* ---------- skills ---------- */
+function skillUnlocked(k) {
+  if (!k.req.length) return true;
+  return k.reqAny ? k.req.some(r => lv(r) > 0) : k.req.every(r => lv(r) > 0);
+}
+function skillCost(k) { return k.cost(lv(k.id)); }
+function canBuySkill(k) { return skillUnlocked(k) && lv(k.id) < k.max && S.karma >= skillCost(k); }
+function buySkill(id) {
+  const k = SKBY[id];
+  if (!k || !canBuySkill(k)) return;
+  S.karma -= skillCost(k);
+  S.skills[id] = lv(id) + 1;
+  addLog(`Soul Tree: ${k.name} ${k.max === Infinity ? 'level ' + lv(id) : lv(id) + '/' + k.max}.`, 'echo');
+  toast(`<b>${esc(k.name)}</b>: ${esc(k.eff(lv(id)))}`, 'carbon');
+  refreshEchoes();
+  save();
+  render(true);
+}
+
+/* =====================================================================
+   Bills
+   ===================================================================== */
+function addBill(kind, name, amount) {
+  S.billSeq = (S.billSeq || 0) + 1;
+  S.bills.push({ id: S.billSeq, kind, name, amount, issued: S.t, due: S.t + DUE_WINDOW });
+}
+function issueBills() {
+  while (S.t >= S.nextRent) {
+    addBill('rent', `Rent, month ${S.month + 1}`, rentAmount(S.month));
+    S.month++;
+    S.nextRent += MONTH;
+  }
+  while (S.t >= S.nextTax) {
+    const amt = S.taxBase * taxRate();
+    S.taxBase = 0;
+    if (amt >= 1) addBill('tax', 'Income tax', amt);
+    S.nextTax += TAX_PERIOD;
+  }
+  if (S.t >= S.nextSurprise) {
+    const name = SURPRISES[Math.floor(Math.random() * SURPRISES.length)];
+    const amt = (15 + Math.max(S.pace, passiveRate()) * (15 + Math.random() * 30)) * billMult() * billUpMult('surprise');
+    addBill('surprise', name, amt);
+    S.nextSurprise = S.t + 110 + Math.random() * 140;
+  }
+}
+const billFx = new Map(); // bill id -> 'paid' | 'missed' (for the stamp animation)
+function payBill(id, auto) {
+  const i = S.bills.findIndex(b => b.id === id);
+  if (i < 0) return false;
+  const b = S.bills[i];
+  if (S.money < b.amount) return false;
+  S.money -= b.amount;
+  S.bills.splice(i, 1);
+  S.stats.billsPaid++;
+  billFx.set(id, { outcome: 'paid', bill: b });
+  addLog(`Paid ${b.name.toLowerCase()}: ${money(b.amount)}${auto ? ' (direct debit)' : ''}.`);
+  return true;
+}
+function settleBills() {
+  if (lv('f_autopay') && S.settings.autopay) {
+    const order = S.bills.slice().sort((a, b) => a.due - b.due);
+    for (const b of order) if (S.money >= b.amount) payBill(b.id, true);
+  }
+  for (const b of S.bills.slice()) {
+    if (S.t >= b.due) {
+      S.bills.splice(S.bills.indexOf(b), 1);
+      S.strikes++;
+      S.debt += b.amount * 1.25;
+      S.stats.billsMissed++;
+      billFx.set(b.id, { outcome: 'missed', bill: b });
+      addLog(`Missed ${b.name.toLowerCase()}. Strike ${S.strikes} of ${maxStrikes()}.`, 'bad');
+      if (S.strikes >= maxStrikes()) { evict(); return; }
+    }
+  }
+}
+function payDebt() {
+  const p = Math.min(S.money, S.debt);
+  if (p <= 0) return;
+  S.money -= p;
+  S.debt -= p;
+  if (S.debt < 0.005) clearDebt();
+  render();
+}
+
+/* =====================================================================
+   Tick
+   ===================================================================== */
+function tick(dt) {
+  S.t += dt;
+  if (S.boosts.length) S.boosts = S.boosts.filter(b => b.until > S.t);
+  refreshEchoes();
+
+  let own = passiveRate() * dt;
+  if (lv('f_cap')) own += 0.01 * rentAmount(S.month) * dt;
+  earnOwn(own);
+
+  const help = lv('h_help');
+  if (help) {
+    S.helpAcc += help * dt;
+    while (S.helpAcc >= 1) { S.helpAcc -= 1; punch(true); }
+  }
+  if (C.echo > 0) earnOther(C.echo * dt, true);
+
+  // your pace: a smoothed rate of everything you earned yourself
+  const inst = S.paceAcc / dt;
+  S.paceAcc = 0;
+  S.pace += (inst - S.pace) * (1 - Math.exp(-dt / 4));
+
+  // record this life so it can become an echo
+  const R = S.rec;
+  R.accT += dt;
+  if (R.accT >= R.interval) {
+    R.samples.push(round4(R.acc / R.accT));
+    R.acc = 0; R.accT = 0;
+    if (R.samples.length > REC_MAX) downsample(R);
+  }
+
+  // echoes outlived
+  for (const st of C.es) {
+    if (!st.playing && !S.outlived[st.e.id]) {
+      S.outlived[st.e.id] = 1;
+      addLog(`Outlived Life No. ${pad3(st.e.life)}. It counts as beaten.`, 'echo');
+    }
+  }
+
+  if (S.debt > 0) S.debt *= 1.03 ** (dt / 10);
+
+  issueBills();
+  settleBills();
+  if (S.ended) return;
+
+  if (!S.opp && S.t >= S.nextOpp) {
+    S.opp = { x: 8 + Math.random() * 78, y: 16 + Math.random() * 66, until: S.t + 13 };
+  } else if (S.opp && S.t >= S.opp.until) {
+    S.opp = null;
+    S.nextOpp = S.t + 60 + Math.random() * 100;
+  }
+}
+function downsample(R) {
+  const s = R.samples, out = [];
+  for (let i = 0; i + 1 < s.length; i += 2) out.push(round4((s[i] + s[i + 1]) / 2));
+  if (s.length % 2) { R.acc += s[s.length - 1] * R.interval; R.accT += R.interval; }
+  R.samples = out;
+  R.interval *= 2;
+}
+
+/* ---------- opportunities ---------- */
+function openOpp() {
+  if (!S.opp) return;
+  S.opp = null;
+  S.nextOpp = S.t + 60 + Math.random() * 100;
+  S.stats.opps++;
+  const r = Math.random();
+  const pr = passiveRate();
+  if (r < 0.45) {
+    const amt = Math.min(S.money * 0.15, pr * 900) + pr * 30 + 25;
+    earnOther(amt, true);
+    toast(`<b>Windfall.</b> An old debt repaid: ${money(amt)}.`);
+    addLog(`Windfall: ${money(amt)}.`, 'good');
+  } else if (r < 0.8) {
+    addBoost('boom', 30);
+    toast('<b>Boom market.</b> Ventures earn ×7 for 30 seconds.');
+    addLog('Boom market: ventures ×7 for 30s.', 'good');
+  } else {
+    addBoost('viral', 12);
+    toast('<b>You went viral.</b> Punches pay ×20 for 12 seconds. Punch fast.');
+    addLog('Went viral: punches ×20 for 12s.', 'good');
+  }
+  render();
+}
+
+/* =====================================================================
+   Lives
+   ===================================================================== */
+function topVenture() {
+  let best = null, bestR = 0;
+  for (const v of VENTURES) { const r = ventureRate(v); if (r > bestR) { bestR = r; best = v; } }
+  return best;
+}
+function buildEcho(evicted) {
+  const R = S.rec;
+  const samples = R.samples.slice();
+  if (R.accT > 0.5) samples.push(round4(R.acc / R.accT));
+  const tail = samples.slice(-3);
+  const finalRate = tail.length ? tail.reduce((a, b) => a + b, 0) / tail.length : 0;
+  const top = topVenture();
+  return {
+    id: S.life, life: S.life, samples, interval: R.interval, length: S.t,
+    finalRate: round4(finalRate), peak: round4(samples.reduce((a, b) => Math.max(a, b), 0)),
+    earned: S.lifeOwn, title: top ? top.title : 'the Drifter', evicted: !!evicted,
+  };
+}
+function evict() {
+  S.ended = true;
+  S.stats.evictions++;
+  openRebirth(true);
+}
+function doRebirth(evicted, replaceId) {
+  const gain = karmaGain(evicted);
+  const echo = buildEcho(evicted);
+  S.karma += gain; S.karmaTotal += gain;
+  S.karmaBase += S.lifeEarned * (evicted ? evictShare() : 1);
+  S.stats.lives++;
+  S.stats.bestLife = Math.max(S.stats.bestLife, S.lifeEarned);
+  S.stats.longest = Math.max(S.stats.longest, S.t);
+
+  if (replaceId !== 'discard' && echo.length > 5) {
+    if (S.echoes.length < echoSlots()) S.echoes.push(echo);
+    else {
+      const i = S.echoes.findIndex(e => String(e.id) === String(replaceId));
+      if (i >= 0) S.echoes[i] = echo;
+    }
+  }
+  S.life++;
+  S.ended = false;
+  freshLife();
+  freshAfterLoad();
+  addLog(`Life No. ${pad3(S.life)} begins with ${S.karma} karma to spend.`, 'echo');
+  save();
+  closeModal();
+  toast(`<b>Life No. ${pad3(S.life)}.</b> Karma +${gain}. ${S.echoes.length ? 'Your echoes start replaying now.' : ''}`, 'carbon');
+  render(true);
+}
+
+/* =====================================================================
+   Save / load
+   ===================================================================== */
+function serialize() {
+  S.lastSeen = Date.now();
+  return JSON.stringify(S);
+}
+function save() {
+  try {
+    localStorage.setItem(SAVE_KEY, serialize());
+    setText($('#foot-save'), 'Saved ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+  } catch (e) {
+    setText($('#foot-save'), 'Saving is unavailable in this browser');
+  }
+}
+function hydrate(raw) {
+  const base = newState();
+  const d = typeof raw === 'string' ? JSON.parse(raw) : raw;
+  if (!d || typeof d !== 'object' || typeof d.life !== 'number') throw new Error('bad save');
+  S = Object.assign(base, d);
+  S.stats = Object.assign(newState().stats, d.stats || {});
+  S.settings = Object.assign(newState().settings, d.settings || {});
+  if (typeof S.t !== 'number' || !S.rec) freshLife();
+  S.boosts = S.boosts || []; S.bills = S.bills || []; S.log = S.log || []; S.outlived = S.outlived || {};
+  S.echoes = (S.echoes || []).filter(e => e && Array.isArray(e.samples));
+  S.paceAcc = 0;
+  S.ended = false;
+}
+function readLocal() {
+  try { return localStorage.getItem(SAVE_KEY); } catch (e) { return null; }
+}
+function exportCode() { return btoa(unescape(encodeURIComponent(serialize()))); }
+function importCode(code) { hydrate(decodeURIComponent(escape(atob(code.trim())))); }
+
+function applyOffline(sec) {
+  if (!(sec > 2)) return;
+  const secs = Math.min(sec, MAX_OFFLINE);
+  refreshEchoes();
+  const gain = passiveRate(true) * secs * offlineRate();
+  if (gain > 0.01) {
+    earnOther(gain, false);
+    if (sec > 20) toast(`<b>Welcome back.</b> In ${dur(secs)} away your ventures earned ${money(gain)} at ${Math.round(offlineRate() * 100)}%. Your life clock and bills were paused.`);
+  }
+}
+
+/* =====================================================================
+   UI: build once
+   ===================================================================== */
+const el = {};
+function buildStatic() {
+  ['cash', 'r-ventures', 'r-echo', 'r-pace', 'punch', 'tc-life', 'tc-value', 'tc-holes', 'tc-foot', 'fx',
+    'strike-boxes', 'strike-note', 'debt-row', 'debt-amt', 'pay-debt', 'boost-row', 'boosts', 'autopay-wrap', 'autopay',
+    'bills', 'upcoming', 'race-list', 'race-mult', 'log', 'vlist', 'ugrid', 'u-summary', 'buy-all',
+    'echo-stats', 'chart', 'chart-key', 'echo-list', 'tree', 'node-detail', 't-karma', 't-weight', 'records',
+    'm-life', 'm-month', 'm-alive', 'm-karma', 'rebirth-btn', 'rebirth-gain', 'b-upgrades', 'b-echoes', 'b-tree', 'opp', 'set-sci'
+  ].forEach(id => { el[id] = document.getElementById(id); });
+
+  el['tc-holes'].innerHTML = '<i></i>'.repeat(20);
+  el.holes = Array.from(el['tc-holes'].children);
+
+  // venture rows
+  el.vrows = {};
+  el.vlist.innerHTML = VENTURES.map(v => `
+    <div class="vrow" data-id="${v.id}" hidden>
+      <div class="vmain">
+        <div class="vname">${esc(v.name)}</div>
+        <div class="vmeta"></div>
+        <div class="vmile">${'<i></i>'.repeat(MILESTONES.length)}<small></small></div>
+      </div>
+      <div class="vcount num zero">0</div>
+      <button class="vbuy" type="button" data-buy="${v.id}"><span class="n"></span><span class="c"></span></button>
+    </div>`).join('') + `
+    <div class="vrow teaser" id="v-teaser" hidden>
+      <div class="vmain"><div class="vname">Unlisted venture</div><div class="vmeta"></div></div>
+      <div class="vcount zero">?</div><div></div>
+    </div>`;
+  for (const v of VENTURES) {
+    const row = el.vlist.querySelector(`[data-id="${v.id}"]`);
+    el.vrows[v.id] = { row, meta: row.querySelector('.vmeta'), count: row.querySelector('.vcount'), btn: row.querySelector('.vbuy'),
+      n: row.querySelector('.vbuy .n'), c: row.querySelector('.vbuy .c'), ticks: Array.from(row.querySelectorAll('.vmile i')),
+      mnote: row.querySelector('.vmile small') };
+  }
+  el.teaser = $('#v-teaser');
+
+  el.vlist.addEventListener('click', e => {
+    const b = e.target.closest('[data-buy]');
+    if (b) buyVenture(b.dataset.buy);
+  });
+  el.ugrid.addEventListener('click', e => {
+    const b = e.target.closest('[data-up]');
+    if (b && buyUpgrade(b.dataset.up)) render(true);
+  });
+  el['buy-all'].addEventListener('click', () => {
+    let any = false;
+    for (const u of availableUpgrades()) if (S.money >= u.cost) any = buyUpgrade(u.id) || any;
+    if (any) render(true);
+  });
+  $('#buy-amt').addEventListener('click', e => {
+    const b = e.target.closest('[data-amt]');
+    if (!b) return;
+    S.settings.buyAmt = b.dataset.amt;
+    render(true);
+  });
+
+  // punching
+  el.punch.addEventListener('click', e => { if (!S.ended && !modalOpen()) { punch(false, e); renderLight(); } });
+  el.punch.addEventListener('keydown', e => { if (e.repeat && (e.key === 'Enter' || e.key === ' ')) e.preventDefault(); });
+
+  el.bills.addEventListener('click', e => {
+    const b = e.target.closest('[data-pay]');
+    if (b && payBill(Number(b.dataset.pay))) render();
+  });
+  el['pay-debt'].addEventListener('click', payDebt);
+  el.autopay.addEventListener('change', () => { S.settings.autopay = el.autopay.checked; });
+  el.opp.addEventListener('click', openOpp);
+  el['rebirth-btn'].addEventListener('click', () => { if (karmaGain(false) >= 1) openRebirth(false); });
+
+  // tabs
+  document.querySelectorAll('.tabs [data-tab]').forEach(b => b.addEventListener('click', () => showTab(b.dataset.tab)));
+
+  // tree
+  el.tree.addEventListener('click', e => {
+    const n = e.target.closest('.node');
+    if (n) { selectedSkill = n.dataset.id; render(true); }
+  });
+  el.tree.addEventListener('keydown', e => {
+    const n = e.target.closest('.node');
+    if (n && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); selectedSkill = n.dataset.id; render(true); const again = el.tree.querySelector(`[data-id="${selectedSkill}"]`); if (again) again.focus(); }
+  });
+  el['node-detail'].addEventListener('click', e => {
+    const b = e.target.closest('[data-skill]');
+    if (b) buySkill(b.dataset.skill);
+  });
+
+  // settings
+  el['set-sci'].addEventListener('change', () => { S.settings.sci = el['set-sci'].checked; render(true); });
+  $('#btn-help').addEventListener('click', () => openIntro());
+  $('#btn-export').addEventListener('click', () => {
+    const code = exportCode();
+    const box = $('#import-box'), ta = $('#save-text');
+    const done = () => setText($('#save-note'), 'Save code copied. Keep it somewhere safe.');
+    const fallback = () => { box.hidden = false; ta.value = code; ta.focus(); ta.select(); setText($('#save-note'), 'Copy the code from the box below.'); };
+    try { navigator.clipboard.writeText(code).then(done, fallback); } catch (e) { fallback(); }
+  });
+  $('#btn-import').addEventListener('click', () => { $('#import-box').hidden = false; $('#save-text').value = ''; $('#save-text').focus(); });
+  $('#btn-import-cancel').addEventListener('click', () => { $('#import-box').hidden = true; });
+  $('#btn-import-go').addEventListener('click', () => {
+    const prev = serialize();
+    try {
+      importCode($('#save-text').value);
+      freshAfterLoad();
+      $('#import-box').hidden = true;
+      setText($('#save-note'), 'Save loaded.');
+      save();
+      render(true);
+    } catch (e) {
+      hydrate(prev);
+      setText($('#save-note'), 'That code could not be read. Check that you pasted all of it.');
+    }
+  });
+  const resetBtn = $('#btn-reset');
+  let resetArmed = 0;
+  resetBtn.addEventListener('click', () => {
+    if (Date.now() - resetArmed < 4000) {
+      try { localStorage.removeItem(SAVE_KEY); } catch (e) { /* storage unavailable */ }
+      S = newState(); freshLife(); refreshEchoes(); billFx.clear(); billNodes.clear(); el.bills.innerHTML = '';
+      resetArmed = 0; resetBtn.textContent = 'Erase all progress';
+      save(); render(true); openIntro();
+    } else {
+      resetArmed = Date.now();
+      resetBtn.textContent = 'Click again to erase everything';
+      setTimeout(() => { if (Date.now() - resetArmed >= 4000) resetBtn.textContent = 'Erase all progress'; }, 4100);
+    }
+  });
+
+  window.addEventListener('resize', () => { chartDirty = true; });
+}
+
+let currentTab = 'ventures';
+function showTab(t) {
+  currentTab = t;
+  document.querySelectorAll('.tabs [data-tab]').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === t)));
+  ['ventures', 'upgrades', 'echoes', 'tree', 'records'].forEach(id => { $('#p-' + id).hidden = id !== t; });
+  chartDirty = true;
+  render(true);
+}
+
+/* =====================================================================
+   UI: render
+   ===================================================================== */
+let lastFull = 0;
+let chartDirty = true;
+let lastChart = 0;
+let upSig = '', treeSig = '', raceSig = '', logSig = '', echoSig = '';
+let selectedSkill = 'root';
+const billNodes = new Map();
+
+function renderLight() {
+  setText(el.cash, money(S.money));
+  el.holes.forEach((h, i) => h.classList.toggle('on', i < Math.floor(S.card / 5)));
+}
+
+function render(force) {
+  const now = performance.now();
+  renderLight();
+  el.cash.classList.toggle('carbon', S.echoes.length > 0);
+  const pr = passiveRate();
+  setText(el['r-ventures'], rate(pr));
+  setText(el['r-echo'], rate(C.echo));
+  setText(el['r-pace'], rate(S.pace));
+
+  // masthead
+  setText(el['m-life'], pad3(S.life));
+  setText(el['m-month'], String(S.month + 1));
+  setText(el['m-alive'], clock(S.t));
+  setText(el['m-karma'], num(S.karma));
+  const gain = karmaGain(false);
+  setDis(el['rebirth-btn'], gain < 1 || !!S.ended);
+  setText(el['rebirth-gain'], gain >= 1 ? `+${num(gain)} karma · next at ${money(nextKarmaAt())}` : `next karma at ${money(nextKarmaAt())}`);
+
+  // time card
+  setText(el['tc-life'], `Life No. ${pad3(S.life)}`);
+  const cv = clickValue();
+  setText(el['tc-value'], `+${money(cv)} per punch${lv('h_help') ? ` · help ${lv('h_help')}/s` : ''}`);
+  el.punch.classList.toggle('rush', boost('rush'));
+  setText(el['tc-foot'], lv('h_rush') ? `${S.card}/100 punches · a full card starts a Rush` : `${S.card}/100 punches on this card`);
+
+  renderStanding();
+  renderBills();
+  renderRace();
+  renderLog();
+  renderOpp();
+
+  // tab badges
+  const avail = availableUpgrades();
+  const affordableUps = avail.filter(u => u.cost <= S.money).length;
+  el['b-upgrades'].hidden = affordableUps === 0;
+  setText(el['b-upgrades'], String(affordableUps));
+  el['b-echoes'].hidden = S.echoes.length === 0;
+  setText(el['b-echoes'], String(S.echoes.length));
+  const treeAfford = SKILLS.some(canBuySkill);
+  el['b-tree'].hidden = !treeAfford;
+  setText(el['b-tree'], num(S.karma));
+
+  if (currentTab === 'ventures') renderVentures();
+  if (currentTab === 'upgrades') renderUpgrades(avail, force);
+  if (currentTab === 'echoes') {
+    renderEchoPanel(force);
+    if (chartDirty || now - lastChart > 500) { drawChart(); lastChart = now; chartDirty = false; }
+  }
+  if (currentTab === 'tree') renderTree(force);
+  if (currentTab === 'records' && (force || now - lastFull > 900)) { renderRecords(); lastFull = now; }
+  if (el['set-sci'].checked !== !!S.settings.sci) el['set-sci'].checked = !!S.settings.sci;
+}
+
+function renderStanding() {
+  const ms = maxStrikes();
+  if (el['strike-boxes'].children.length !== ms) el['strike-boxes'].innerHTML = '<i></i>'.repeat(ms);
+  Array.from(el['strike-boxes'].children).forEach((b, i) => b.classList.toggle('on', i < S.strikes));
+  setText(el['strike-note'], S.strikes ? `${ms - S.strikes} more missed bill${ms - S.strikes === 1 ? '' : 's'} and you're evicted` : `${ms} missed bills and you're evicted`);
+  el['debt-row'].hidden = !(S.debt > 0);
+  if (S.debt > 0) { setText(el['debt-amt'], money(S.debt)); setDis(el['pay-debt'], S.money < 0.01); }
+  const bs = S.boosts.filter(b => b.until > S.t);
+  el['boost-row'].hidden = bs.length === 0;
+  const html = bs.map(b => {
+    const label = b.kind === 'boom' ? 'Boom ×7' : b.kind === 'viral' ? 'Viral ×20' : 'Rush';
+    return `<span class="chip ${b.kind}">${label} · ${Math.ceil(b.until - S.t)}s</span>`;
+  }).join('');
+  if (el.boosts.innerHTML !== html) el.boosts.innerHTML = html;
+  el['autopay-wrap'].hidden = !lv('f_autopay');
+  if (el.autopay.checked !== !!S.settings.autopay) el.autopay.checked = !!S.settings.autopay;
+}
+
+function billKindLabel(k) { return k === 'rent' ? 'Rent' : k === 'tax' ? 'Tax' : 'Unexpected'; }
+function renderBills() {
+  const live = new Set(S.bills.map(b => b.id));
+  // stamp and file away bills that just left
+  for (const [id, fx] of billFx) {
+    let node = billNodes.get(id);
+    if (!node) { node = makeBillNode(fx.bill); el.bills.appendChild(node.root); billNodes.set(id, node); }
+    if (!node.stamped) {
+      node.stamped = true;
+      node.root.classList.add('done', 'leaving');
+      node.root.classList.remove('urgent');
+      const s = document.createElement('span');
+      s.className = 'stampmark' + (fx.outcome === 'missed' ? ' bad' : '');
+      s.textContent = fx.outcome === 'missed' ? 'Past due' : 'Paid';
+      node.root.appendChild(s);
+      node.root.addEventListener('animationend', ev => {
+        if (ev.animationName === 'file-away') { node.root.remove(); billNodes.delete(id); }
+      });
+      setTimeout(() => { if (node.root.isConnected) { node.root.remove(); billNodes.delete(id); } }, 1600);
+    }
+    billFx.delete(id);
+  }
+  for (const b of S.bills) {
+    let node = billNodes.get(b.id);
+    if (!node) { node = makeBillNode(b); el.bills.appendChild(node.root); billNodes.set(b.id, node); }
+    const left = b.due - S.t;
+    setText(node.due, `Due in ${clock(Math.ceil(left))}`);
+    node.bar.style.transform = `scaleX(${Math.max(0, left / DUE_WINDOW).toFixed(3)})`;
+    node.root.classList.toggle('urgent', left < 12);
+    setDis(node.btn, S.money < b.amount);
+  }
+  for (const [id, node] of billNodes) if (!live.has(id) && !node.stamped) { node.root.remove(); billNodes.delete(id); }
+
+  let empty = el.bills.querySelector('.empty');
+  if (billNodes.size === 0) {
+    if (!empty) { empty = document.createElement('p'); empty.className = 'empty'; el.bills.appendChild(empty); }
+    setText(empty, 'Nothing due right now.');
+  } else if (empty) empty.remove();
+
+  // upcoming
+  const nextRentIn = S.nextRent - S.t;
+  const nr = rentAmount(S.month);
+  const taxIn = S.nextTax - S.t;
+  const taxEst = S.taxBase * taxRate();
+  const owed = S.bills.reduce((a, b) => a + b.amount, 0);
+  const short = owed + (nextRentIn < 20 ? nr : 0) - S.money;
+  const g = Math.round(rentRiseAt(S.month) * 100);
+  const html = `Next rent <span class="num">${money(nr)}</span> in <span class="num">${clock(nextRentIn)}</span>, up ${g}% on last month and climbing. ` +
+    `Tax bill in <span class="num">${clock(taxIn)}</span>, about <span class="num">${money(taxEst)}</span> so far (${Math.round(taxRate() * 100)}% of income).` +
+    (short > 0 && (owed > 0 || nextRentIn < 20) ? ` <span class="warn">Short by ${money(short)}.</span>` : '');
+  if (el.upcoming.innerHTML !== html) el.upcoming.innerHTML = html;
+}
+function makeBillNode(b) {
+  const root = document.createElement('div');
+  root.className = 'bill';
+  root.innerHTML = `<div class="b-left"><span class="b-kind">${billKindLabel(b.kind)}</span><span class="b-name">${esc(b.name)}</span><span class="b-due"></span></div>
+    <div class="b-right"><span class="b-amt">${money(b.amount)}</span><button class="btn small" type="button" data-pay="${b.id}">Pay</button></div>
+    <div class="b-bar"><i></i></div>`;
+  return { root, due: root.querySelector('.b-due'), bar: root.querySelector('.b-bar i'), btn: root.querySelector('button'), stamped: false };
+}
+
+function renderRace() {
+  const sig = S.echoes.map(e => e.id).join(',');
+  if (sig !== raceSig) {
+    raceSig = sig;
+    el['race-list'].innerHTML = S.echoes.length ? S.echoes.map(e => `
+      <div class="race-row" data-e="${e.id}"><span class="tag">L${e.life}</span><span class="who">${esc(e.title)}</span><span class="st"></span></div>`).join('')
+      : `<p class="empty">Nobody to race yet. When this life ends it becomes your first echo, and your next life races against it.</p>`;
+  }
+  C.es.forEach(st => {
+    const row = el['race-list'].querySelector(`[data-e="${st.e.id}"] .st`);
+    if (!row) return;
+    const label = !st.playing ? 'Outlived' : st.ahead ? 'Ahead' : 'Behind';
+    setText(row, label);
+    row.className = 'st ' + (!st.playing ? 'done' : st.ahead ? 'ahead' : 'behind');
+  });
+  setText(el['race-mult'], S.echoes.length ? `×${fmtMult(C.race)} income` : '');
+}
+
+function addLog(m, k) {
+  if (!S.log) S.log = [];
+  S.log.unshift({ t: S.t, m, k: k || '' });
+  if (S.log.length > 30) S.log.length = 30;
+}
+function renderLog() {
+  const top = S.log.slice(0, 8);
+  const sig = top.map(l => l.t + l.m).join('|');
+  if (sig === logSig) return;
+  logSig = sig;
+  el.log.innerHTML = top.length ? top.map(l => `<li class="${l.k}"><time>${clock(l.t)}</time><span>${esc(l.m)}</span></li>`).join('')
+    : '<li><time>0:00</time><span>A new life. Nothing written down yet.</span></li>';
+}
+
+function renderOpp() {
+  if (S.opp && !S.ended) {
+    el.opp.hidden = false;
+    el.opp.style.left = `calc(${S.opp.x}vw - 38px)`;
+    el.opp.style.top = `${S.opp.y}vh`;
+  } else el.opp.hidden = true;
+}
+
+function renderVentures() {
+  document.querySelectorAll('#buy-amt [data-amt]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.amt === S.settings.buyAmt)));
+  const gm = globalMult() * (boost('boom') ? 7 : 1) * (boost('rush') ? 1.5 : 1);
+  let teaser = null;
+  VENTURES.forEach((v, i) => {
+    const r = el.vrows[v.id];
+    const o = owned(v.id);
+    const visible = i < 2 || o > 0 || S.lifeEarned >= v.cost * 0.25 || S.money >= v.cost * 0.5;
+    r.row.hidden = !visible;
+    if (!visible) { if (!teaser) teaser = v; return; }
+    const each = v.rate * ventureMult(v) * gm;
+    setText(r.meta, `${rate(each)} each · ${rate(each * o)} total`);
+    setText(r.count, num(o));
+    r.count.classList.toggle('zero', o === 0);
+    const n = buyCount(v);
+    const cost = ventureCost(v, n);
+    setText(r.n, S.settings.buyAmt === 'max' ? `Buy ${maxAffordable(v) || 1}` : `Buy ${n}`);
+    setText(r.c, money(cost));
+    setDis(r.btn, cost > S.money);
+    let nextM = null;
+    MILESTONES.forEach((m, j) => {
+      const bought = !!S.ups[v.id + ':' + j];
+      r.ticks[j].className = bought ? 'bought' : o >= m ? 'reached' : '';
+      if (nextM === null && o < m) nextM = m;
+    });
+    setText(r.mnote, nextM === null ? 'all milestones' : `next milestone at ${nextM}`);
+  });
+  el.teaser.hidden = !teaser;
+  if (teaser) setText(el.teaser.querySelector('.vmeta'), `Opens once you've earned ${money(teaser.cost * 0.25)} in one life`);
+}
+
+function renderUpgrades(avail, force) {
+  const sig = avail.map(u => u.id).join(',') + '|' + S.settings.sci + '|' + lv('e_master');
+  if (sig !== upSig || force) {
+    upSig = sig;
+    el.ugrid.innerHTML = avail.length ? avail.map(u => `
+      <button class="utile" type="button" data-up="${u.id}">
+        <span class="u-kind">${esc(u.kind)}</span><span class="u-name">${esc(u.name)}</span>
+        <span class="u-eff">${esc(u.eff)}</span><span class="u-cost">${money(u.cost)}</span>
+      </button>`).join('') : '<p class="subtle">No upgrades on offer. Buy more ventures to reach the next milestone: 1, 5, 25, 50, 100, 150 and 200 owned.</p>';
+  }
+  el.ugrid.querySelectorAll('[data-up]').forEach(b => setDis(b, UBY[b.dataset.up].cost > S.money));
+  const bought = Object.keys(S.ups).length;
+  setText(el['u-summary'], `${bought} bought this life. Upgrades last until the life ends.`);
+  setDis(el['buy-all'], !avail.some(u => u.cost <= S.money));
+}
+
+/* ---------- echoes panel ---------- */
+function renderEchoPanel(force) {
+  const statsHtml = `
+    <div><dt>Slots</dt><dd>${S.echoes.length} of ${echoSlots()}</dd></div>
+    <div><dt>Strength</dt><dd>${Math.round(echoPower() * 100)}%${lv('x_cap') ? ', ×2 if beaten' : ''}</dd></div>
+    <div><dt>Playback</dt><dd>${echoSpeed()}×</dd></div>
+    <div><dt>Bonus per echo beaten</dt><dd>+${Math.round(rivalryPer() * 100)}%</dd></div>
+    <div><dt>Now</dt><dd>×${fmtMult(C.race)} income</dd></div>`;
+  if (el['echo-stats'].innerHTML !== statsHtml) el['echo-stats'].innerHTML = statsHtml;
+
+  const sig = S.echoes.map(e => e.id).join(',') + '|' + S.settings.sci;
+  if (sig !== echoSig || force) {
+    echoSig = sig;
+    el['echo-list'].innerHTML = S.echoes.length ? S.echoes.map((e, i) => `
+      <article class="echo-card" data-e="${e.id}">
+        <div class="e-top">
+          <span class="e-name"><span class="tag">L${e.life}</span>Life No. ${pad3(e.life)}, ${esc(e.title)}${e.evicted ? ' (evicted)' : ''}</span>
+          <span class="st"></span>
+        </div>
+        <div class="e-facts">Lived ${dur(e.length)} · earned ${money(e.earned)} · peak ${rate(e.peak * permMult())} in today's terms</div>
+        <div class="e-bar"><i></i></div>
+        <div class="e-facts e-play"></div>
+        <div class="e-pay"></div>
+      </article>`).join('')
+      : `<div class="echo-empty">No echoes yet. Keep this life going, then reincarnate. It will replay beside your next life and pay you ${Math.round(echoPower() * 100)}% of what it earned at each moment. Get ahead of its pace and all your income rises ${Math.round(rivalryPer() * 100)}%.</div>`;
+  }
+  C.es.forEach(st => {
+    const card = el['echo-list'].querySelector(`[data-e="${st.e.id}"]`);
+    if (!card) return;
+    const stEl = card.querySelector('.st');
+    setText(stEl, !st.playing ? 'Outlived' : st.ahead ? 'You are ahead' : 'You are behind');
+    stEl.className = 'st ' + (!st.playing ? 'done' : st.ahead ? 'ahead' : 'behind');
+    card.querySelector('.e-bar i').style.width = Math.min(100, st.tau / st.e.length * 100).toFixed(1) + '%';
+    setText(card.querySelector('.e-play'), st.playing
+      ? `Replaying minute ${Math.floor(st.tau / 60)} of ${Math.ceil(st.e.length / 60)} · it earned ${rate(st.rate)} here, you are earning ${rate(S.pace)}`
+      : `Finished ${dur(S.t - st.e.length / echoSpeed())} ago`);
+    setText(card.querySelector('.e-pay'), st.pay > 0 ? `Paying you ${rate(st.pay)} (${Math.round(st.power * 100)}% of ${rate(st.rate)})` : 'Silent. Lingering on the Soul Tree keeps finished echoes paying.');
+  });
+}
+
+function cssVar(n) { return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+const DASHES = [[], [7, 4], [2, 3], [9, 3, 2, 3]];
+const ALPHAS = [1, 0.75, 0.55, 0.4];
+function drawChart() {
+  const cv = el.chart;
+  const w = cv.clientWidth, h = cv.clientHeight;
+  if (!w || !h) return;
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
+  const ctx = cv.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, w, h);
+  const ink = cssVar('--ink'), ink3 = cssVar('--ink-3'), rule = cssVar('--rule'), carbon = cssVar('--carbon');
+  const pad = { l: 58, r: 34, t: 10, b: 24 };
+  const pw = w - pad.l - pad.r, ph = h - pad.t - pad.b;
+  const spd = echoSpeed();
+  const tNow = S.t;
+  const xMax = Math.max(180, tNow + Math.max(90, tNow * 0.35));
+
+  const pm = permMult();
+  const mine = S.rec.samples.map((v, i) => [(i + 0.5) * S.rec.interval, v * pm]);
+  mine.push([tNow, S.pace]);
+  const series = S.echoes.map(e => {
+    const pts = [];
+    for (let i = 0; i < e.samples.length; i++) {
+      const x = (i + 0.5) * e.interval / spd;
+      if (x > xMax) break;
+      pts.push([x, e.samples[i] * pm]);
+    }
+    return { e, pts, end: e.length / spd };
+  });
+
+  let ymax = 1;
+  for (const p of mine) ymax = Math.max(ymax, p[1]);
+  for (const s of series) for (const p of s.pts) ymax = Math.max(ymax, p[1]);
+  const top = Math.ceil(Math.log10(ymax * 1.05));
+  const bottom = Math.min(top - 1, Math.max(top - 6, -1));
+  const X = t => pad.l + (t / xMax) * pw;
+  const Y = v => {
+    const lg = v > 0 ? Math.log10(v) : bottom;
+    const c = Math.min(top, Math.max(bottom, lg));
+    return pad.t + ph - ((c - bottom) / (top - bottom)) * ph;
+  };
+
+  ctx.font = `500 10.5px ${cssVar('--mono') || 'monospace'}`;
+  ctx.lineWidth = 1;
+  // horizontal grid
+  const stepY = top - bottom > 4 ? 2 : 1;
+  for (let e = bottom; e <= top; e += stepY) {
+    const y = Y(10 ** e);
+    ctx.strokeStyle = rule; ctx.setLineDash([]);
+    ctx.beginPath(); ctx.moveTo(pad.l, y + 0.5); ctx.lineTo(pad.l + pw, y + 0.5); ctx.stroke();
+    ctx.fillStyle = ink3; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    ctx.fillText(rate(10 ** e), pad.l - 6, y);
+  }
+  // x ticks
+  const steps = [30, 60, 120, 300, 600, 900, 1800, 3600, 7200];
+  const stepX = steps.find(s => xMax / s <= 6) || 7200;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+  for (let t = 0; t <= xMax; t += stepX) {
+    const x = X(t);
+    ctx.strokeStyle = rule;
+    ctx.beginPath(); ctx.moveTo(x + 0.5, pad.t); ctx.lineTo(x + 0.5, pad.t + ph); ctx.stroke();
+    ctx.fillStyle = ink3;
+    ctx.fillText(clock(t), x, pad.t + ph + 6);
+  }
+
+  // echoes
+  series.forEach((s, i) => {
+    if (!s.pts.length) return;
+    ctx.save();
+    ctx.globalAlpha = ALPHAS[i % 4];
+    ctx.strokeStyle = carbon; ctx.lineWidth = 1.6; ctx.setLineDash(DASHES[i % 4]);
+    ctx.beginPath();
+    s.pts.forEach((p, j) => { const x = X(p[0]), y = Y(p[1]); j ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
+    ctx.stroke();
+    ctx.setLineDash([]);
+    const last = s.pts[s.pts.length - 1];
+    ctx.fillStyle = carbon; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    if (s.end <= xMax) {
+      const ex = X(s.end), ey = Y(last[1]);
+      ctx.beginPath(); ctx.moveTo(ex - 4, ey - 4); ctx.lineTo(ex + 4, ey + 4); ctx.moveTo(ex + 4, ey - 4); ctx.lineTo(ex - 4, ey + 4); ctx.stroke();
+      ctx.fillText('L' + s.e.life, Math.min(ex + 6, w - 30), ey);
+    } else {
+      ctx.fillText('L' + s.e.life, Math.min(X(last[0]) + 4, w - 30), Y(last[1]));
+    }
+    const st = C.es.find(z => z.e === s.e);
+    if (st && st.playing) {
+      ctx.beginPath(); ctx.arc(X(tNow), Y(st.rate), 3.5, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
+  });
+
+  // this life
+  ctx.strokeStyle = ink; ctx.lineWidth = 2.4; ctx.setLineDash([]);
+  ctx.beginPath();
+  mine.forEach((p, j) => { const x = X(p[0]), y = Y(p[1]); j ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
+  ctx.stroke();
+  // now line
+  ctx.strokeStyle = ink3; ctx.lineWidth = 1; ctx.setLineDash([3, 3]);
+  ctx.beginPath(); ctx.moveTo(X(tNow) + 0.5, pad.t); ctx.lineTo(X(tNow) + 0.5, pad.t + ph); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle = ink;
+  ctx.beginPath(); ctx.arc(X(tNow), Y(S.pace), 4, 0, Math.PI * 2); ctx.fill();
+  ctx.textAlign = 'left'; ctx.textBaseline = 'bottom';
+  ctx.fillText('now', Math.min(X(tNow) + 6, w - 28), pad.t + 12);
+
+  // key
+  const key = `<span><svg width="26" height="8" aria-hidden="true"><line x1="0" y1="4" x2="26" y2="4" stroke="${ink}" stroke-width="2.4"/></svg>This life, Life No. ${pad3(S.life)}</span>` +
+    S.echoes.map((e, i) => `<span><svg width="26" height="8" aria-hidden="true"><line x1="0" y1="4" x2="26" y2="4" stroke="${carbon}" stroke-opacity="${ALPHAS[i % 4]}" stroke-width="1.8" stroke-dasharray="${DASHES[i % 4].join(' ')}"/></svg>L${e.life}, ${esc(e.title)}</span>`).join('') +
+    `<span class="subtle">Income per second, log scale. Minutes since birth.</span>`;
+  if (el['chart-key'].innerHTML !== key) el['chart-key'].innerHTML = key;
+}
+
+/* ---------- soul tree ---------- */
+function renderTree(force) {
+  setText(el['t-karma'], num(S.karma));
+  setText(el['t-weight'], `Soul weight ×${fmtMult(soulWeight(S.karmaTotal))} from ${num(S.karmaTotal)} karma earned`);
+  const sig = JSON.stringify(S.skills) + '|' + S.karma + '|' + selectedSkill + '|' + S.settings.sci;
+  if (sig === treeSig && !force) return;
+  treeSig = sig;
+  const W = 110, H = 56;
+  const owned = id => lv(id) > 0;
+  let s = '';
+  const line = (d, cls) => { s += `<path class="ln ${cls}" d="${d}"/>`; };
+  // root to branches
+  const root = SKBY.root;
+  for (const b of BRANCHES) {
+    const first = SKILLS.find(k => k.br === b.id && k.req.length === 1 && k.req[0] === 'root');
+    const cls = owned('root') && owned(first.id) ? 'on' : owned('root') ? 'open' : '';
+    line(`M${root.x} ${root.y + H / 2} V100 H${first.x} V${first.y - H / 2}`, cls);
+  }
+  // inside branches
+  for (const k of SKILLS) {
+    if (k.id === 'root' || k.id === 'omega' || (k.req.length === 1 && k.req[0] === 'root')) continue;
+    for (const pid of k.req) {
+      const p = SKBY[pid];
+      const mid = (p.y + H / 2 + k.y - H / 2) / 2;
+      const cls = owned(pid) && owned(k.id) ? 'on' : owned(pid) ? 'open' : '';
+      line(`M${p.x} ${p.y + H / 2} V${mid} H${k.x} V${k.y - H / 2}`, cls);
+    }
+  }
+  // capstones to omega
+  const om = SKBY.omega;
+  for (const pid of om.req) {
+    const p = SKBY[pid];
+    const cls = owned(pid) && owned('omega') ? 'on' : owned(pid) ? 'open' : '';
+    line(`M${p.x} ${p.y + H / 2} V520 H${om.x} V${om.y - H / 2}`, cls);
+  }
+  // branch labels
+  for (const b of BRANCHES) s += `<text class="brl" x="${b.x + 8}" y="121">${b.label}</text>`;
+  // nodes
+  for (const k of SKILLS) {
+    const l = lv(k.id);
+    const unlocked = skillUnlocked(k);
+    let st = 'locked';
+    if (l >= k.max) st = 'max';
+    else if (l > 0) st = 'part' + (S.karma >= skillCost(k) ? ' afford' : '');
+    else if (unlocked) st = S.karma >= skillCost(k) ? 'afford' : 'open';
+    const lvl = k.max === Infinity ? `Lv ${l}` : `${l}/${k.max}`;
+    s += `<g class="node ${st}${k.br === 'echoes' ? ' x-branch' : ''}${selectedSkill === k.id ? ' sel' : ''}" data-id="${k.id}" tabindex="0" role="button" aria-label="${esc(k.name)}, level ${lvl}" transform="translate(${k.x - W / 2},${k.y - H / 2})">
+      <rect width="${W}" height="${H}" rx="3"/>
+      <text class="n-code" x="8" y="16">${k.code}</text>
+      <text class="n-lvl" x="${W - 8}" y="16" text-anchor="end">${lvl}</text>
+      <text class="n-name" x="${W / 2}" y="40" text-anchor="middle">${esc(k.name)}</text>
+    </g>`;
+  }
+  el.tree.innerHTML = s;
+
+  // detail
+  const k = SKBY[selectedSkill] || root;
+  const l = lv(k.id);
+  const maxed = l >= k.max;
+  const unlocked = skillUnlocked(k);
+  const cost = maxed ? 0 : skillCost(k);
+  const reqNames = k.req.map(r => SKBY[r].name);
+  const reqText = !unlocked ? `Requires ${k.reqAny ? 'any one of' : ''} ${reqNames.join(k.reqAny ? ', ' : ' and ')}.` : '';
+  const branch = k.br === 'core' ? 'Trunk' : k.br[0].toUpperCase() + k.br.slice(1);
+  el['node-detail'].innerHTML = `
+    <div>
+      <div class="nd-code">${k.code} · ${branch} · ${k.max === Infinity ? 'level ' + l : 'level ' + l + ' of ' + k.max}</div>
+      <h3>${esc(k.name)}</h3>
+      <p class="nd-flavor">${esc(k.flavor)}</p>
+      <div class="nd-eff">
+        <div><b>Now</b>${l ? esc(k.eff(l)) : 'Not learned'}</div>
+        ${maxed ? '' : `<div class="next"><b>Next</b>${esc(k.eff(l + 1))}</div>`}
+      </div>
+      ${reqText ? `<p class="nd-req">${esc(reqText)}</p>` : ''}
+    </div>
+    <div class="nd-buy">
+      ${maxed ? '<span class="nd-cost">Fully learned</span>' : `<span class="nd-cost">${num(cost)} karma</span>
+      <button class="btn" type="button" data-skill="${k.id}" ${canBuySkill(k) ? '' : 'disabled'}>${l ? 'Learn next level' : 'Learn'}</button>`}
+    </div>`;
+}
+
+/* ---------- records ---------- */
+function renderRecords() {
+  const st = S.stats;
+  const rows = [
+    ['Lives lived', num(st.lives + 1)],
+    ['Karma earned, all lives', num(S.karmaTotal)],
+    ['Earned, all lives', money(st.allTime)],
+    ['Earned, this life', money(S.lifeEarned)],
+    ['Best single life', money(Math.max(st.bestLife, S.lifeEarned))],
+    ['Longest life', dur(Math.max(st.longest, S.t))],
+    ['Punches, all lives', num(st.clicks)],
+    ['Bills paid', num(st.billsPaid)],
+    ['Bills missed', num(st.billsMissed)],
+    ['Evictions', num(st.evictions)],
+    ['Envelopes opened', num(st.opps)],
+    ['Venture income multiplier', '×' + fmtMult(globalMult())],
+  ];
+  el.records.innerHTML = rows.map(r => `<div><dt>${r[0]}</dt><dd>${r[1]}</dd></div>`).join('');
+}
+
+/* ---------- float text ---------- */
+let fxCount = 0;
+function floatText(ev, text, lucky) {
+  if (fxCount > 24) return;
+  const box = el.punch.getBoundingClientRect();
+  let x = box.width / 2, y = box.height / 2;
+  if (ev && ev.clientX && ev.detail) { x = ev.clientX - box.left; y = ev.clientY - box.top; }
+  x += (Math.random() - 0.5) * 30;
+  const s = document.createElement('span');
+  if (lucky) s.className = 'lucky';
+  s.textContent = lucky ? text + ' lucky' : text;
+  s.style.left = x + 'px'; s.style.top = y + 'px';
+  fxCount++;
+  const kill = () => { if (s.isConnected) { s.remove(); fxCount--; } };
+  s.addEventListener('animationend', kill);
+  setTimeout(kill, 1200);
+  el.fx.appendChild(s);
+}
+
+/* ---------- toasts ---------- */
+function toast(html, kind) {
+  const t = document.createElement('div');
+  t.className = 'toast' + (kind ? ' ' + kind : '');
+  t.innerHTML = html;
+  const box = $('#toasts');
+  box.appendChild(t);
+  while (box.children.length > 3) box.firstChild.remove();
+  setTimeout(() => { t.classList.add('out'); setTimeout(() => t.remove(), 320); }, 4200);
+}
+
+/* =====================================================================
+   Modals
+   ===================================================================== */
+function modalOpen() { return !$('#modal').hidden; }
+function openModal(html) {
+  $('#modal-sheet').innerHTML = html;
+  $('#modal').hidden = false;
+  const f = $('#modal-sheet [data-primary]') || $('#modal-sheet button');
+  if (f) f.focus();
+}
+function closeModal() { $('#modal').hidden = true; $('#modal-sheet').innerHTML = ''; last = performance.now(); }
+
+function openIntro() {
+  openModal(`
+    <div class="m-head"><span>Form PD-0</span><span>Instructions for the living</span></div>
+    <div class="m-body">
+      <h2 id="modal-title">Past Due</h2>
+      <ol>
+        <li><b>Punch in</b> on the time card to earn cash, then buy <b>ventures</b> that earn on their own.</li>
+        <li><b>Bills land in your inbox.</b> Rent comes every minute, taxes every two and a half, and life throws in the odd surprise. Pay each one within 40 seconds. A missed bill becomes debt and a strike. <b>Three strikes and you're evicted.</b></li>
+        <li><b>Rent goes up every month, and faster each time.</b> Sooner or later it outgrows you. Before it does, <b>reincarnate</b>. You start over with karma to spend on the <b>Soul Tree</b>.</li>
+        <li><b>Your past lives stay with you.</b> Each finished life becomes an <b>echo</b>, a ghost that replays its earnings beside your new life, second by second, scaled up to your current strength. It pays you a share, and every echo you out-earn at the same age raises all your income.</li>
+      </ol>
+      <p>Time only passes in your life while this page is open. While you're away your ventures keep earning at a reduced rate, and your bills wait.</p>
+      <div class="m-actions"><button class="btn" type="button" data-primary id="m-go">${S.stats.lives || S.t > 5 ? 'Back to work' : 'Start Life No. 001'}</button></div>
+    </div>`);
+  $('#m-go').addEventListener('click', () => { S.introSeen = true; closeModal(); save(); });
+}
+
+function drawSpark(cv, samples) {
+  const w = cv.clientWidth, h = cv.clientHeight;
+  if (!w || !h) return;
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
+  const ctx = cv.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const carbon = cssVar('--carbon'), soft = cssVar('--carbon-soft');
+  if (samples.length < 2) return;
+  const lg = samples.map(v => v > 0 ? Math.log10(v) : null);
+  const valid = lg.filter(v => v !== null);
+  const hi = Math.max(...valid, 0.1), lo = Math.min(...valid, hi - 1);
+  const X = i => 6 + (i / (samples.length - 1)) * (w - 12);
+  const Y = v => h - 6 - ((v === null ? lo : v) - lo) / (hi - lo || 1) * (h - 12);
+  ctx.beginPath();
+  lg.forEach((v, i) => i ? ctx.lineTo(X(i), Y(v)) : ctx.moveTo(X(i), Y(v)));
+  ctx.strokeStyle = carbon; ctx.lineWidth = 1.8; ctx.stroke();
+  ctx.lineTo(X(samples.length - 1), h); ctx.lineTo(X(0), h); ctx.closePath();
+  ctx.fillStyle = soft; ctx.fill();
+}
+
+function openRebirth(evicted) {
+  const gain = karmaGain(evicted);
+  const full = karmaGain(false);
+  const echo = buildEcho(evicted);
+  const slots = echoSlots();
+  const full_ = S.echoes.length >= slots;
+  let choice = '';
+  if (full_) {
+    const all = S.echoes.concat([echo]);
+    const weakest = all.reduce((a, b) => (b.earned < a.earned ? b : a));
+    const def = weakest === echo ? 'discard' : String(weakest.id);
+    choice = `<div class="slot-choice" role="radiogroup" aria-label="Which echo to replace">
+      <p>Your echo slots are full (${slots}). Choose which past life this one replaces.</p>
+      ${S.echoes.map(e => `<label><input type="radio" name="slot" value="${e.id}" ${def === String(e.id) ? 'checked' : ''}><span>Replace L${e.life}, ${esc(e.title)}</span><span class="num">${dur(e.length)} · ${money(e.earned)}</span></label>`).join('')}
+      <label><input type="radio" name="slot" value="discard" ${def === 'discard' ? 'checked' : ''}><span>Keep them all. Let this life fade.</span><span class="num"></span></label>
+    </div>`;
+  }
+  openModal(`
+    <div class="m-head"><span>${evicted ? 'Form PD-9 · Notice of eviction' : 'Form PD-7 · Request to reincarnate'}</span><span>Life No. ${pad3(S.life)}</span></div>
+    ${evicted ? '<div class="m-stamp">Evicted</div>' : ''}
+    <div class="m-body">
+      <h2 id="modal-title"${evicted ? ' class="evicted"' : ''}>${evicted ? 'Three strikes' : `Life No. ${pad3(S.life)} ends`}</h2>
+      <p>${evicted
+        ? `You missed ${maxStrikes()} bills and the landlord changed the locks. This life is over, and only ${Math.round(evictShare() * 100)}% of what you earned counts toward karma.`
+        : 'Everything you own stays behind: cash, ventures, upgrades, debts. You keep your karma, your Soul Tree and your echoes.'}</p>
+      <dl class="m-facts">
+        <div><dt>Lived</dt><dd>${dur(S.t)}</dd></div>
+        <div><dt>Earned</dt><dd>${money(S.lifeEarned)}</dd></div>
+        <div><dt>Karma</dt><dd class="carbon">+${num(gain)}${evicted && full > gain ? ` <small>of a possible ${num(full)}</small>` : ''}</dd></div>
+      </dl>
+      <div>
+        <p style="margin-bottom:6px"><b>This life becomes an echo:</b> L${echo.life}, ${esc(echo.title)}. Peak ${rate(echo.peak * permMult())}, ${dur(echo.length)} long.</p>
+        <canvas class="spark" id="m-spark"></canvas>
+      </div>
+      ${choice}
+      <div class="m-actions">
+        ${evicted ? '' : '<button class="btn ghost" type="button" id="m-cancel">Keep living</button>'}
+        <button class="btn" type="button" data-primary id="m-go">${evicted ? 'Begin the next life' : 'Reincarnate'}</button>
+      </div>
+    </div>`);
+  requestAnimationFrame(() => { const c = $('#m-spark'); if (c) drawSpark(c, echo.samples); });
+  const cancel = $('#m-cancel');
+  if (cancel) cancel.addEventListener('click', closeModal);
+  $('#m-go').addEventListener('click', () => {
+    const r = document.querySelector('#modal-sheet input[name="slot"]:checked');
+    doRebirth(evicted, r ? r.value : 'new');
+  });
+}
+
+/* =====================================================================
+   Loop
+   ===================================================================== */
+let last = performance.now();
+let hiddenAt = null;
+let saveTimer = 0;
+function loop() {
+  const now = performance.now();
+  let dt = (now - last) / 1000;
+  last = now;
+  if (document.hidden) return;
+  if (!modalOpen() && !S.ended) {
+    if (dt > 5) { applyOffline(dt); dt = 0; }
+    while (dt > 0 && !S.ended) {
+      const step = Math.min(dt, 0.25);
+      tick(step);
+      dt -= step;
+    }
+  }
+  saveTimer += 0.1;
+  if (saveTimer >= 10) { saveTimer = 0; save(); }
+  render();
+}
+document.addEventListener('visibilitychange', () => {
+  if (!S) return;
+  if (document.hidden) { hiddenAt = Date.now(); save(); }
+  else {
+    if (hiddenAt && !S.ended) applyOffline((Date.now() - hiddenAt) / 1000);
+    hiddenAt = null;
+    last = performance.now();
+    render(true);
+  }
+});
+window.addEventListener('pagehide', () => { if (S) save(); });
+
+function freshAfterLoad() {
+  billFx.clear();
+  for (const n of billNodes.values()) n.root.remove();
+  billNodes.clear();
+  raceSig = upSig = treeSig = logSig = echoSig = '';
+  refreshEchoes();
+}
+
+let started = false;
+function boot(data) {
+  if (started) return;
+  started = true;
+  let raw = data && data.save ? data.save : null;
+  const fromHot = !!raw;
+  if (!raw) raw = readLocal();
+  try { if (raw) hydrate(raw); else throw new Error('none'); }
+  catch (e) { S = newState(); freshLife(); }
+  buildStatic();
+  freshAfterLoad();
+  if (!fromHot && S.lastSeen && S.introSeen) applyOffline((Date.now() - S.lastSeen) / 1000);
+  last = performance.now();
+  render(true);
+  if (!S.introSeen) openIntro();
+  setInterval(loop, 100);
+  window.pastDue = { get state() { return S; }, tick, punch, buyVenture, buyUpgrade, buySkill, doRebirth, refreshEchoes, karmaGain, passiveRate, rentAmount, save,
+    VENTURES, availableUpgrades, ventureCost, payBill, clickValue, render, C, permMult };
+}
+
+try {
+  const hot = window.claude && window.claude.hot;
+  if (hot && typeof hot.snapshot === 'function') hot.snapshot(() => ({ save: S ? serialize() : null }));
+  if (hot && typeof hot.ready === 'function') hot.ready(d => boot(d || {}));
+  else boot((hot && hot.data) || {});
+} catch (e) {
+  boot({});
+}
+setTimeout(() => boot({}), 1500);
+})();
+</script>
+</body>
+</html>
