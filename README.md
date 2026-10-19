@@ -343,3 +343,11 @@ src/ui/              panels, dialogs and shared controls
 The renderer sits behind one surface (`renderComposition`), so a WebGL2 pass
 pipeline could replace the Canvas2D one without the document model or the UI
 changing.
+
+## Ease Match (side project)
+
+`game/index.html` is a small standalone browser game built on the editor's own
+easing presets: a layer animates between two keyframes with a hidden preset,
+and you match it by dragging the bezier handles in a graph editor. Ten shots
+across Position, Scale and Rotation, scored on how closely your value curve
+tracks the target. Open the file in a browser; it needs no build step.

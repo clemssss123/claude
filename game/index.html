@@ -1,0 +1,898 @@
+<title>Ease Match</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800;900&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+  /* Layout: a compositor workspace. HUD strip on top, comp viewer and graph
+     editor side by side (stacked on phones), render verdict as an overlay. */
+  :root {
+    color-scheme: dark;
+    --ground: #101318;      /* app chrome */
+    --panel: #181c23;       /* panel body */
+    --panel-hi: #222833;    /* panel header, inputs */
+    --line: #2e3542;        /* hairlines, grid */
+    --ink: #e4e8ef;         /* primary text */
+    --ink-dim: #8b95a6;     /* secondary text */
+    --ghost: #f2b33d;       /* the target motion: amber keyframe */
+    --yours: #4fd1c5;       /* your motion: teal */
+    --good: #6fdc8c;
+    --bad: #ff6b6b;
+    --font-display: "Big Shoulders Display", "Arial Narrow", Impact, sans-serif;
+    --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+  [hidden] { display: none !important; }
+  html, body { height: 100%; }
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--font-body);
+    font-size: 14px;
+    overflow-x: hidden;
+  }
+  .app {
+    max-width: 1240px;
+    margin: 0 auto;
+    padding-block: 16px 24px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .stage { position: relative; display: flex; flex-direction: column; gap: 12px; }
+  .stage.shake { animation: shake 420ms cubic-bezier(.36,.07,.19,.97); }
+  @keyframes shake {
+    10%, 90% { transform: translate(-2px, 1px) rotate(-0.2deg); }
+    20%, 80% { transform: translate(4px, -2px) rotate(0.3deg); }
+    30%, 50%, 70% { transform: translate(-6px, 3px) rotate(-0.4deg); }
+    40%, 60% { transform: translate(6px, -1px) rotate(0.4deg); }
+  }
+
+  /* HUD */
+  .hud {
+    display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 12px 24px;
+  }
+  .brand { display: flex; align-items: baseline; gap: 12px; min-width: 0; }
+  .brand h1 {
+    margin: 0;
+    font-family: var(--font-display);
+    font-weight: 900;
+    font-size: clamp(34px, 6vw, 52px);
+    line-height: .9;
+    letter-spacing: .01em;
+    text-transform: uppercase;
+  }
+  .brand h1 .diamond {
+    display: inline-block; width: .42em; height: .42em; background: var(--ghost);
+    transform: rotate(45deg) translateY(-.12em); margin: 0 .08em 0 .14em;
+  }
+  .brand p { margin: 0; color: var(--ink-dim); font-size: 13px; max-width: 34ch; }
+  .stats { display: flex; gap: 20px; flex-wrap: wrap; }
+  .stat { display: flex; flex-direction: column; gap: 2px; min-width: 64px; }
+  .stat .k {
+    font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-dim);
+  }
+  .stat .v {
+    font-family: var(--font-mono); font-size: 20px; font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+  .stat .v.hot { color: var(--ghost); }
+  .stat .v.warn { color: var(--bad); }
+
+  /* Panels */
+  .workspace { display: grid; grid-template-columns: 1.15fr 1fr; gap: 12px; }
+  @media (max-width: 880px) { .workspace { grid-template-columns: 1fr; } }
+  .panel {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 4px;
+    display: flex; flex-direction: column; min-width: 0;
+  }
+  .panel-head {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    padding: 7px 12px; background: var(--panel-hi); border-bottom: 1px solid var(--line);
+    font-size: 11.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-dim);
+  }
+  .panel-head b { color: var(--ink); font-weight: 600; }
+  .legend { display: flex; gap: 12px; text-transform: none; letter-spacing: 0; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend i { width: 8px; height: 8px; transform: rotate(45deg); display: inline-block; }
+  .canvas-wrap { position: relative; width: 100%; aspect-ratio: 16 / 10; max-width: 100%; }
+  .canvas-wrap canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  #graph { touch-action: none; cursor: crosshair; }
+
+  .controls {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 10px 12px;
+    border-top: 1px solid var(--line);
+  }
+  .bez {
+    font-family: var(--font-mono); font-size: 12.5px; color: var(--ink-dim);
+    display: flex; flex-wrap: wrap; align-items: center; gap: 4px; min-width: 0;
+  }
+  .bez input {
+    width: 4.6em; padding: 4px 5px; font: inherit; color: var(--ink);
+    background: var(--panel-hi); border: 1px solid var(--line); border-radius: 3px;
+    font-variant-numeric: tabular-nums;
+  }
+  .bez input:focus-visible { outline: 2px solid var(--yours); outline-offset: 1px; }
+  .spacer { flex: 1; }
+
+  button {
+    font: 600 13px var(--font-body); color: var(--ink); cursor: pointer;
+    background: var(--panel-hi); border: 1px solid var(--line); border-radius: 3px;
+    padding: 8px 14px;
+  }
+  button:hover { border-color: var(--ink-dim); }
+  button:focus-visible { outline: 2px solid var(--yours); outline-offset: 2px; }
+  button.primary {
+    background: var(--ghost); color: #1a1405; border-color: var(--ghost);
+    font-family: var(--font-display); font-weight: 800; font-size: 18px;
+    letter-spacing: .06em; text-transform: uppercase; padding: 6px 18px;
+  }
+  button.primary:hover { filter: brightness(1.08); }
+  kbd {
+    font-family: var(--font-mono); font-size: 11px; padding: 1px 5px; border-radius: 3px;
+    border: 1px solid var(--line); background: var(--ground); color: var(--ink-dim);
+  }
+  .hint { color: var(--ink-dim); font-size: 12.5px; }
+
+  /* Timer bar under the HUD */
+  .timebar { height: 4px; background: var(--panel-hi); border-radius: 2px; overflow: hidden; }
+  .timebar div { height: 100%; width: 100%; background: var(--yours); transform-origin: left; }
+  .timebar div.low { background: var(--bad); }
+
+  /* Overlays */
+  .overlay {
+    position: absolute; inset: 0; z-index: 5; display: grid; place-items: center; padding: 16px;
+    background: color-mix(in srgb, var(--ground) 82%, transparent);
+    backdrop-filter: blur(3px);
+  }
+  .card {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
+    width: min(560px, 100%); padding: 22px; display: flex; flex-direction: column; gap: 14px;
+    box-shadow: 0 24px 60px rgba(0,0,0,.45);
+  }
+  .card h2 {
+    margin: 0; font-family: var(--font-display); font-weight: 900; text-transform: uppercase;
+    font-size: clamp(38px, 8vw, 60px); line-height: .9; letter-spacing: .01em; text-wrap: balance;
+  }
+  .card p { margin: 0; line-height: 1.55; color: var(--ink-dim); max-width: 60ch; }
+  .card p strong { color: var(--ink); font-weight: 600; }
+  .verdict-row { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+  .verdict-row canvas { width: 168px; height: 120px; flex: none; max-width: 100%; }
+  .verdict-text { display: flex; flex-direction: column; gap: 6px; min-width: 0; flex: 1; }
+  .acc {
+    font-family: var(--font-display); font-weight: 900; font-size: 64px; line-height: .85;
+    font-variant-numeric: tabular-nums;
+  }
+  .tag {
+    align-self: flex-start; font-size: 11px; letter-spacing: .14em; text-transform: uppercase;
+    padding: 3px 8px; border-radius: 2px; font-weight: 600;
+  }
+  .mono { font-family: var(--font-mono); font-size: 12.5px; color: var(--ink-dim); overflow-wrap: anywhere; }
+  .pts { font-family: var(--font-mono); font-size: 13px; color: var(--ink); }
+  .actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .rules { display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; margin: 0; color: var(--ink-dim); line-height: 1.45; }
+  .rules dt { font-family: var(--font-mono); color: var(--ghost); font-size: 12.5px; }
+  .rules dd { margin: 0; }
+
+  .reel { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+  @media (max-width: 480px) { .reel { grid-template-columns: repeat(2, 1fr); } }
+  .reel figure {
+    margin: 0; background: var(--ground); border: 1px solid var(--line); border-radius: 3px;
+    padding: 6px; display: flex; flex-direction: column; gap: 4px; min-width: 0;
+  }
+  .reel canvas { width: 100%; aspect-ratio: 4 / 3; max-width: 100%; }
+  .reel figcaption { font-family: var(--font-mono); font-size: 11px; color: var(--ink-dim); display: flex; justify-content: space-between; gap: 4px; }
+
+  .flash { position: fixed; inset: 0; pointer-events: none; z-index: 20; opacity: 0; }
+  .flash.go { animation: flash 380ms ease-out; }
+  @keyframes flash { 0% { opacity: .55; } 100% { opacity: 0; } }
+
+  @media (prefers-reduced-motion: reduce) {
+    .stage.shake, .flash.go { animation: none; }
+  }
+</style>
+
+<div class="app">
+  <header class="hud">
+    <div class="brand">
+      <h1>Ease<span class="diamond" aria-hidden="true"></span>Match</h1>
+      <p>Watch the amber motion. Bend your curve until the teal one moves the same way.</p>
+    </div>
+    <div class="stats" aria-live="polite">
+      <div class="stat"><span class="k">Shot</span><span class="v" id="sShot">1/10</span></div>
+      <div class="stat"><span class="k">Score</span><span class="v" id="sScore">0</span></div>
+      <div class="stat"><span class="k">Streak</span><span class="v" id="sStreak">×1.0</span></div>
+      <div class="stat"><span class="k">Time</span><span class="v" id="sTime">30.0</span></div>
+    </div>
+  </header>
+  <div class="timebar" aria-hidden="true"><div id="timeFill"></div></div>
+
+  <div class="stage" id="stage">
+    <div class="workspace">
+      <section class="panel" aria-label="Composition viewer">
+        <div class="panel-head">
+          <span>Composition · <b id="propName">Position</b></span>
+          <span class="legend">
+            <span><i style="background:var(--ghost)"></i>Target</span>
+            <span><i style="background:var(--yours)"></i>Yours</span>
+          </span>
+        </div>
+        <div class="canvas-wrap"><canvas id="viewer"></canvas></div>
+        <div class="controls">
+          <span class="hint" id="shotHint">Onion skin on: the dots show where the layer is on every 4th frame.</span>
+        </div>
+      </section>
+
+      <section class="panel" aria-label="Graph editor">
+        <div class="panel-head">
+          <span>Graph Editor · <b>Value</b></span>
+          <span class="legend"><span>Drag the two handles</span></span>
+        </div>
+        <div class="canvas-wrap"><canvas id="graph" aria-label="Value graph with two draggable bezier handles"></canvas></div>
+        <div class="controls">
+          <div class="bez">
+            cubic-bezier(
+            <input id="x1" type="number" step="0.01" min="0" max="1" aria-label="x1">,
+            <input id="y1" type="number" step="0.01" min="-0.8" max="1.8" aria-label="y1">,
+            <input id="x2" type="number" step="0.01" min="0" max="1" aria-label="x2">,
+            <input id="y2" type="number" step="0.01" min="-0.8" max="1.8" aria-label="y2">
+            )
+          </div>
+          <span class="spacer"></span>
+          <button id="resetBtn" type="button" title="Back to Linear">Linear</button>
+          <button id="renderBtn" class="primary" type="button">Render <kbd>Enter</kbd></button>
+        </div>
+      </section>
+    </div>
+
+    <div class="overlay" id="introOv">
+      <div class="card">
+        <h2>Read the motion. Match the ease.</h2>
+        <p>Ten shots. Each one plays a layer animating between two keyframes with one of the
+          <strong>Keyframe Studio</strong> easing presets. Shape your curve in the graph editor
+          until your layer moves the same way, then hit <strong>Render</strong>.</p>
+        <dl class="rules">
+          <dt>1–3</dt><dd>Position, with onion skin on the target. Read the spacing.</dd>
+          <dt>4–6</dt><dd>Position, no onion skin. Read it from the motion alone.</dd>
+          <dt>7–8</dt><dd>Scale.</dd>
+          <dt>9–10</dt><dd>Rotation, and the presets get nastier: Expo, Quint, Back.</dd>
+        </dl>
+        <p>30 seconds a shot. Leftover time adds points, and 90%+ shots in a row build a multiplier.</p>
+        <div class="actions">
+          <button id="startBtn" class="primary" type="button">Start <kbd>Enter</kbd></button>
+          <button id="soundBtn" type="button" aria-pressed="true">Sound: on</button>
+          <span class="hint" id="bestLine"></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="overlay" id="verdictOv" hidden>
+      <div class="card">
+        <div class="verdict-row">
+          <canvas id="verdictCurve" width="336" height="240"></canvas>
+          <div class="verdict-text">
+            <span class="tag" id="vTag">Clean</span>
+            <span class="acc" id="vAcc">92%</span>
+            <span class="pts" id="vPts"></span>
+          </div>
+        </div>
+        <p class="mono" id="vName"></p>
+        <div class="actions">
+          <button id="nextBtn" class="primary" type="button">Next shot <kbd>Enter</kbd></button>
+        </div>
+      </div>
+    </div>
+
+    <div class="overlay" id="endOv" hidden>
+      <div class="card">
+        <span class="tag" id="eTag">Final render</span>
+        <h2 id="eTitle">Score</h2>
+        <p id="eLine"></p>
+        <div class="reel" id="reel"></div>
+        <div class="actions">
+          <button id="againBtn" class="primary" type="button">Play again <kbd>Enter</kbd></button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="flash" id="flash"></div>
+
+<script>
+(() => {
+  // ---------- Easing presets (the same control points as src/core/easings.ts) ----------
+  const P = (name, pts, tier) => ({ name, pts, tier });
+  const PRESETS = [
+    P('Easy Ease', [1/3, 0, 2/3, 1], 1),
+    P('Easy Ease In', [1/3, 1/3, 2/3, 1], 1),
+    P('Easy Ease Out', [1/3, 0, 2/3, 2/3], 1),
+    P('Sine In', [0.12, 0, 0.39, 0], 1),
+    P('Sine Out', [0.61, 1, 0.88, 1], 1),
+    P('Sine In Out', [0.37, 0, 0.63, 1], 1),
+    P('Quad In', [0.11, 0, 0.5, 0], 1),
+    P('Quad Out', [0.5, 1, 0.89, 1], 1),
+    P('Quad In Out', [0.45, 0, 0.55, 1], 1),
+    P('Cubic In', [0.32, 0, 0.67, 0], 2),
+    P('Cubic Out', [0.33, 1, 0.68, 1], 2),
+    P('Cubic In Out', [0.65, 0, 0.35, 1], 2),
+    P('Quart In', [0.5, 0, 0.75, 0], 2),
+    P('Quart Out', [0.25, 1, 0.5, 1], 2),
+    P('Quart In Out', [0.76, 0, 0.24, 1], 2),
+    P('Circ In', [0.55, 0, 1, 0.45], 2),
+    P('Circ Out', [0, 0.55, 0.45, 1], 2),
+    P('Circ In Out', [0.85, 0, 0.15, 1], 2),
+    P('Quint In', [0.64, 0, 0.78, 0], 3),
+    P('Quint Out', [0.22, 1, 0.36, 1], 3),
+    P('Quint In Out', [0.83, 0, 0.17, 1], 3),
+    P('Expo In', [0.7, 0, 0.84, 0], 3),
+    P('Expo Out', [0.16, 1, 0.3, 1], 3),
+    P('Expo In Out', [0.87, 0, 0.13, 1], 3),
+    P('Back In', [0.36, 0, 0.66, -0.56], 3),
+    P('Back Out', [0.34, 1.56, 0.64, 1], 3),
+    P('Back In Out', [0.68, -0.6, 0.32, 1.6], 3),
+  ];
+  const LINEAR = [1/3, 1/3, 2/3, 2/3];
+
+  // Shot plan: property, onion skin on the target, which preset tiers to draw from.
+  const SHOTS = [
+    { prop: 'Position', onion: true, tiers: [1] },
+    { prop: 'Position', onion: true, tiers: [1] },
+    { prop: 'Position', onion: true, tiers: [1, 2] },
+    { prop: 'Position', onion: false, tiers: [1, 2] },
+    { prop: 'Position', onion: false, tiers: [2] },
+    { prop: 'Position', onion: false, tiers: [2, 3] },
+    { prop: 'Scale', onion: false, tiers: [1, 2] },
+    { prop: 'Scale', onion: false, tiers: [2, 3] },
+    { prop: 'Rotation', onion: false, tiers: [2, 3] },
+    { prop: 'Rotation', onion: false, tiers: [3] },
+  ];
+  const SHOT_SECONDS = 30;
+  const ANIM = 1.5, HOLD = 0.5, FPS = 24;
+  const Y_MIN = -0.75, Y_MAX = 1.75;
+
+  // ---------- Cubic bezier easing: solve x(t) = x, return y(t) ----------
+  function ease(p, x) {
+    const [x1, y1, x2, y2] = p;
+    if (x <= 0) return 0;
+    if (x >= 1) return 1;
+    const cx = 3 * x1, bx = 3 * (x2 - x1) - cx, ax = 1 - cx - bx;
+    const cy = 3 * y1, by = 3 * (y2 - y1) - cy, ay = 1 - cy - by;
+    const sx = t => ((ax * t + bx) * t + cx) * t;
+    const dx = t => (3 * ax * t + 2 * bx) * t + cx;
+    let t = x;
+    for (let i = 0; i < 8; i++) {
+      const err = sx(t) - x;
+      if (Math.abs(err) < 1e-6) return ((ay * t + by) * t + cy) * t;
+      const d = dx(t);
+      if (Math.abs(d) < 1e-6) break;
+      t -= err / d;
+    }
+    let lo = 0, hi = 1; t = x;
+    for (let i = 0; i < 40; i++) {
+      const v = sx(t);
+      if (Math.abs(v - x) < 1e-6) break;
+      if (v < x) lo = t; else hi = t;
+      t = (lo + hi) / 2;
+    }
+    return ((ay * t + by) * t + cy) * t;
+  }
+
+  // Mean absolute difference of the two value curves over the segment.
+  function accuracy(a, b) {
+    const N = 200;
+    let sum = 0;
+    for (let i = 0; i <= N; i++) { const x = i / N; sum += Math.abs(ease(a, x) - ease(b, x)); }
+    const d = sum / (N + 1);
+    return Math.max(0, Math.min(1, 1 - d * 5));
+  }
+
+  function gradeFor(acc) {
+    if (acc >= 0.95) return { label: 'Frame-perfect', color: 'var(--ghost)' };
+    if (acc >= 0.88) return { label: 'Clean', color: 'var(--good)' };
+    if (acc >= 0.75) return { label: 'Close', color: 'var(--yours)' };
+    if (acc >= 0.55) return { label: 'Rough cut', color: 'var(--ink-dim)' };
+    return { label: 'Re-render', color: 'var(--bad)' };
+  }
+
+  // ---------- State ----------
+  const $ = id => document.getElementById(id);
+  let best = 0;
+  try { best = Number(localStorage.getItem('easeMatch.best')) || 0; } catch (e) {}
+
+  const S = {
+    phase: 'intro',          // intro | play | verdict | end
+    shot: 0,
+    score: 0,
+    streak: 0,
+    timeLeft: SHOT_SECONDS,
+    target: null,
+    yours: LINEAR.slice(),
+    used: new Set(),
+    results: [],
+    sound: true,
+  };
+
+  function pickTarget(tiers) {
+    const pool = PRESETS.filter(p => tiers.includes(p.tier) && !S.used.has(p.name));
+    const p = pool[Math.floor(Math.random() * pool.length)] || PRESETS[0];
+    S.used.add(p.name);
+    return p;
+  }
+
+  // ---------- Sound (WebAudio blips, started by a click) ----------
+  let actx = null;
+  function blip(freq, dur = 0.08, type = 'square', gain = 0.05, slide = 0) {
+    if (!S.sound) return;
+    try {
+      actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+      const o = actx.createOscillator(), g = actx.createGain();
+      o.type = type; o.frequency.value = freq;
+      if (slide) o.frequency.exponentialRampToValueAtTime(freq * slide, actx.currentTime + dur);
+      g.gain.setValueAtTime(gain, actx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.0001, actx.currentTime + dur);
+      o.connect(g).connect(actx.destination);
+      o.start(); o.stop(actx.currentTime + dur);
+    } catch (e) {}
+  }
+
+  // ---------- Canvas helpers ----------
+  function fit(canvas) {
+    const r = canvas.getBoundingClientRect();
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const w = Math.max(1, Math.round(r.width * dpr)), h = Math.max(1, Math.round(r.height * dpr));
+    if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+    const ctx = canvas.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    return { ctx, w: r.width, h: r.height };
+  }
+  const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  let C = {};
+  function readColors() {
+    C = {
+      ground: css('--ground'), panel: css('--panel'), hi: css('--panel-hi'), line: css('--line'),
+      ink: css('--ink'), dim: css('--ink-dim'), ghost: css('--ghost'), yours: css('--yours'), bad: css('--bad'),
+    };
+  }
+
+  function diamond(ctx, x, y, r, fill, stroke) {
+    ctx.beginPath();
+    ctx.moveTo(x, y - r); ctx.lineTo(x + r, y); ctx.lineTo(x, y + r); ctx.lineTo(x - r, y); ctx.closePath();
+    if (fill) { ctx.fillStyle = fill; ctx.fill(); }
+    if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = 1.5; ctx.stroke(); }
+  }
+
+  // ---------- Viewer ----------
+  const viewer = $('viewer');
+  function drawLayer(ctx, prop, v, cx, cy, laneW, laneH, color, alpha) {
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = color;
+    ctx.strokeStyle = color;
+    const size = Math.min(laneH * 0.42, 34);
+    if (prop === 'Position') {
+      const x0 = cx - laneW / 2 + size, x1 = cx + laneW / 2 - size;
+      const x = x0 + (x1 - x0) * v;
+      ctx.beginPath(); ctx.arc(x, cy, size / 2, 0, Math.PI * 2); ctx.fill();
+    } else if (prop === 'Scale') {
+      const s = Math.max(0, 0.15 + 0.85 * v) * size * 1.9;
+      ctx.fillRect(cx - s / 2, cy - s / 2, s, s);
+    } else {
+      const a = -Math.PI / 2 + v * Math.PI;
+      const len = Math.min(laneH * 0.42, laneW * 0.3);
+      ctx.lineWidth = 6; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(a) * len, cy + Math.sin(a) * len); ctx.stroke();
+      ctx.beginPath(); ctx.arc(cx, cy, 6, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  function drawViewer(now) {
+    const { ctx, w, h } = fit(viewer);
+    ctx.fillStyle = C.ground; ctx.fillRect(0, 0, w, h);
+    // transparency checker, faint: the comp background
+    const cs = 16;
+    ctx.fillStyle = C.panel;
+    for (let y = 0; y < h; y += cs) for (let x = ((y / cs) % 2) * cs; x < w; x += cs * 2) ctx.fillRect(x, y, cs, cs);
+
+    const shot = SHOTS[Math.min(S.shot, SHOTS.length - 1)];
+    const prop = shot.prop;
+    const target = S.target ? S.target.pts : PRESETS[0].pts;
+    const tlH = 34;
+    const area = h - tlH;
+    const laneH = area / 2;
+    const laneW = w - 32;
+
+    const cycle = ANIM + HOLD;
+    const tt = (now / 1000) % cycle;
+    const x = Math.min(1, tt / ANIM);
+
+    const lanes = [
+      { pts: target, color: C.ghost, label: 'TARGET', onion: shot.onion || S.phase === 'verdict' || S.phase === 'intro' },
+      { pts: S.yours, color: C.yours, label: 'YOURS', onion: true },
+    ];
+    lanes.forEach((lane, i) => {
+      const cy = laneH * i + laneH / 2;
+      ctx.fillStyle = C.dim; ctx.font = '600 10px ' + css('--font-mono');
+      ctx.fillText(lane.label, 12, laneH * i + 16);
+      if (i === 0) { ctx.strokeStyle = C.line; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(0, laneH); ctx.lineTo(w, laneH); ctx.stroke(); }
+      if (lane.onion) {
+        const frames = Math.round(ANIM * FPS);
+        for (let f = 0; f <= frames; f += 4) {
+          const v = ease(lane.pts, f / frames);
+          if (prop === 'Position') drawLayer(ctx, prop, v, w / 2, cy, laneW, laneH, lane.color, 0.16);
+          else if (prop === 'Rotation') drawLayer(ctx, prop, v, w / 2, cy, laneW, laneH, lane.color, 0.1);
+        }
+        if (prop === 'Scale') {
+          // scale onion: outlines
+          for (let f = 0; f <= frames; f += 4) {
+            const v = ease(lane.pts, f / frames);
+            const size = Math.min(laneH * 0.42, 34);
+            const s = Math.max(0, 0.15 + 0.85 * v) * size * 1.9;
+            ctx.strokeStyle = lane.color; ctx.globalAlpha = 0.22; ctx.lineWidth = 1;
+            ctx.strokeRect(w / 2 - s / 2, cy - s / 2, s, s); ctx.globalAlpha = 1;
+          }
+        }
+      }
+      drawLayer(ctx, prop, ease(lane.pts, x), w / 2, cy, laneW, laneH, lane.color, 1);
+    });
+
+    // mini timeline: two keyframes and a playhead
+    const ty = area;
+    ctx.fillStyle = C.hi; ctx.fillRect(0, ty, w, tlH);
+    ctx.strokeStyle = C.line; ctx.beginPath(); ctx.moveTo(0, ty + 0.5); ctx.lineTo(w, ty + 0.5); ctx.stroke();
+    const k0 = 24, k1 = w - 24 - (w - 48) * (HOLD / cycle);
+    const total = w - 48;
+    ctx.strokeStyle = C.line;
+    for (let f = 0; f <= cycle * FPS; f++) {
+      const px = 24 + total * (f / (cycle * FPS));
+      ctx.beginPath(); ctx.moveTo(px, ty + tlH - (f % 6 === 0 ? 10 : 5)); ctx.lineTo(px, ty + tlH); ctx.stroke();
+    }
+    diamond(ctx, k0, ty + tlH / 2 - 2, 6, C.ghost);
+    diamond(ctx, k1, ty + tlH / 2 - 2, 6, C.ghost);
+    const ph = 24 + total * (tt / cycle);
+    ctx.strokeStyle = '#4ea1ff'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(ph, ty + 2); ctx.lineTo(ph, ty + tlH); ctx.stroke();
+    ctx.fillStyle = C.dim; ctx.font = '10px ' + css('--font-mono');
+    const frame = Math.floor(tt * FPS);
+    ctx.textAlign = 'right';
+    ctx.fillText(`${String(frame).padStart(2, '0')}f · ${FPS}fps`, w - 8, ty + 12);
+    ctx.textAlign = 'left';
+  }
+
+  // ---------- Graph editor ----------
+  const graph = $('graph');
+  let gGeom = null;
+  let drag = -1, hover = -1;
+
+  function graphGeom(w, h) {
+    const padL = 34, padR = 16, padT = 14, padB = 22;
+    const gw = w - padL - padR, gh = h - padT - padB;
+    return {
+      w, h,
+      X: x => padL + x * gw,
+      Y: y => padT + (Y_MAX - y) / (Y_MAX - Y_MIN) * gh,
+      invX: px => (px - padL) / gw,
+      invY: py => Y_MAX - (py - padT) / gh * (Y_MAX - Y_MIN),
+      padL, padT, gw, gh,
+    };
+  }
+
+  function curvePath(ctx, g, pts, steps = 120) {
+    ctx.beginPath();
+    for (let i = 0; i <= steps; i++) {
+      const x = i / steps, y = ease(pts, x);
+      if (i === 0) ctx.moveTo(g.X(x), g.Y(y)); else ctx.lineTo(g.X(x), g.Y(y));
+    }
+  }
+
+  function drawGraph() {
+    const { ctx, w, h } = fit(graph);
+    const g = gGeom = graphGeom(w, h);
+    ctx.fillStyle = C.ground; ctx.fillRect(0, 0, w, h);
+
+    // grid
+    ctx.strokeStyle = C.line; ctx.lineWidth = 1;
+    ctx.fillStyle = C.dim; ctx.font = '10px ' + css('--font-mono');
+    for (let i = 0; i <= 10; i++) {
+      const x = g.X(i / 10);
+      ctx.globalAlpha = i % 5 === 0 ? 0.9 : 0.4;
+      ctx.beginPath(); ctx.moveTo(x, g.Y(Y_MAX)); ctx.lineTo(x, g.Y(Y_MIN)); ctx.stroke();
+    }
+    for (let v = -0.5; v <= 1.5001; v += 0.25) {
+      const y = g.Y(v);
+      ctx.globalAlpha = (Math.abs(v) < 1e-6 || Math.abs(v - 1) < 1e-6) ? 1 : 0.35;
+      ctx.beginPath(); ctx.moveTo(g.X(0), y); ctx.lineTo(g.X(1), y); ctx.stroke();
+      if (Math.abs(v * 2 - Math.round(v * 2)) < 1e-6) { ctx.globalAlpha = 0.9; ctx.fillText((v * 100).toFixed(0) + '%', 2, y + 3); }
+    }
+    ctx.globalAlpha = 1;
+    ctx.fillText('0f', g.X(0) - 4, h - 6);
+    ctx.textAlign = 'right';
+    ctx.fillText(Math.round(ANIM * FPS) + 'f', g.X(1) + 4, h - 6);
+    ctx.textAlign = 'left';
+
+    // target reveal on the verdict screen
+    if (S.phase === 'verdict' && S.target) {
+      ctx.strokeStyle = C.ghost; ctx.lineWidth = 2.5; curvePath(ctx, g, S.target.pts); ctx.stroke();
+    }
+
+    const [x1, y1, x2, y2] = S.yours;
+    // handle lines
+    ctx.strokeStyle = C.dim; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(g.X(0), g.Y(0)); ctx.lineTo(g.X(x1), g.Y(y1)); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(g.X(1), g.Y(1)); ctx.lineTo(g.X(x2), g.Y(y2)); ctx.stroke();
+    // your curve
+    ctx.strokeStyle = C.yours; ctx.lineWidth = 2.5; curvePath(ctx, g, S.yours); ctx.stroke();
+    // keyframes
+    diamond(ctx, g.X(0), g.Y(0), 7, C.ghost);
+    diamond(ctx, g.X(1), g.Y(1), 7, C.ghost);
+    // handles
+    [[x1, y1], [x2, y2]].forEach(([hx, hy], i) => {
+      const active = drag === i || hover === i;
+      ctx.beginPath(); ctx.arc(g.X(hx), g.Y(hy), active ? 8 : 6, 0, Math.PI * 2);
+      ctx.fillStyle = active ? C.yours : C.ground; ctx.fill();
+      ctx.strokeStyle = C.yours; ctx.lineWidth = 2; ctx.stroke();
+    });
+  }
+
+  function handleAt(px, py) {
+    if (!gGeom) return -1;
+    const g = gGeom;
+    const hs = [[S.yours[0], S.yours[1]], [S.yours[2], S.yours[3]]];
+    let bestI = -1, bestD = 24;
+    hs.forEach(([hx, hy], i) => {
+      const d = Math.hypot(g.X(hx) - px, g.Y(hy) - py);
+      if (d < bestD) { bestD = d; bestI = i; }
+    });
+    return bestI;
+  }
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const round2 = v => Math.round(v * 100) / 100;
+
+  function setHandle(i, x, y) {
+    S.yours[i * 2] = round2(clamp(x, 0, 1));
+    S.yours[i * 2 + 1] = round2(clamp(y, Y_MIN + 0.05, Y_MAX - 0.05));
+    syncInputs();
+  }
+
+  function localPoint(e) {
+    const r = graph.getBoundingClientRect();
+    return [e.clientX - r.left, e.clientY - r.top];
+  }
+  graph.addEventListener('pointerdown', e => {
+    if (S.phase !== 'play') return;
+    const [px, py] = localPoint(e);
+    let i = handleAt(px, py);
+    if (i < 0) {
+      // click empty space: grab the nearer handle by x
+      const x = gGeom.invX(px);
+      i = x < 0.5 ? 0 : 1;
+    }
+    drag = i;
+    graph.setPointerCapture(e.pointerId);
+    setHandle(i, gGeom.invX(px), gGeom.invY(py));
+    blip(660, 0.03, 'triangle', 0.03);
+  });
+  graph.addEventListener('pointermove', e => {
+    const [px, py] = localPoint(e);
+    if (drag >= 0 && S.phase === 'play') setHandle(drag, gGeom.invX(px), gGeom.invY(py));
+    else hover = handleAt(px, py);
+    graph.style.cursor = (drag >= 0 || hover >= 0) ? 'grab' : 'crosshair';
+  });
+  const endDrag = () => { drag = -1; };
+  graph.addEventListener('pointerup', endDrag);
+  graph.addEventListener('pointercancel', endDrag);
+  graph.addEventListener('pointerleave', () => { hover = -1; });
+
+  const inputs = ['x1', 'y1', 'x2', 'y2'].map($);
+  function syncInputs() {
+    inputs.forEach((el, i) => { if (document.activeElement !== el) el.value = S.yours[i].toFixed(2); });
+  }
+  inputs.forEach((el, i) => el.addEventListener('input', () => {
+    const v = parseFloat(el.value);
+    if (!Number.isFinite(v) || S.phase !== 'play') return;
+    S.yours[i] = i % 2 === 0 ? clamp(v, 0, 1) : clamp(v, Y_MIN + 0.05, Y_MAX - 0.05);
+  }));
+  inputs.forEach(el => el.addEventListener('blur', syncInputs));
+
+  // ---------- Game flow ----------
+  function hud() {
+    $('sShot').textContent = `${Math.min(S.shot + 1, SHOTS.length)}/${SHOTS.length}`;
+    $('sScore').textContent = S.score.toLocaleString('en-US');
+    const mult = 1 + 0.25 * S.streak;
+    $('sStreak').textContent = '×' + mult.toFixed(2).replace(/0$/, '');
+    $('sStreak').classList.toggle('hot', S.streak > 0);
+    $('sTime').textContent = S.timeLeft.toFixed(1);
+    $('sTime').classList.toggle('warn', S.timeLeft < 8 && S.phase === 'play');
+    const fill = $('timeFill');
+    fill.style.transform = `scaleX(${S.timeLeft / SHOT_SECONDS})`;
+    fill.classList.toggle('low', S.timeLeft < 8);
+  }
+
+  function beginShot() {
+    const shot = SHOTS[S.shot];
+    S.target = pickTarget(shot.tiers);
+    S.yours = LINEAR.slice();
+    S.timeLeft = SHOT_SECONDS;
+    S.phase = 'play';
+    syncInputs();
+    $('propName').textContent = shot.prop;
+    $('shotHint').textContent = shot.onion
+      ? 'Onion skin is on: each dot marks every 4th frame. Tight dots mean slow, wide gaps mean fast.'
+      : shot.prop === 'Position'
+        ? 'No onion skin on the target now. Watch where it speeds up and where it settles.'
+        : shot.prop === 'Scale'
+          ? 'Scale from 15% to 100%. Watch when the square does most of its growing.'
+          : 'Rotation from 0° to 180°. Watch for a wind-up or an overshoot.';
+    ['introOv', 'verdictOv', 'endOv'].forEach(id => { $(id).hidden = true; });
+    hud();
+    blip(440, 0.07); setTimeout(() => blip(880, 0.09), 90);
+  }
+
+  function render() {
+    if (S.phase !== 'play') return;
+    S.phase = 'verdict';
+    const acc = accuracy(S.target.pts, S.yours);
+    const grade = gradeFor(acc);
+    let base = Math.round(acc * 1000);
+    const timeBonus = acc >= 0.75 ? Math.round(S.timeLeft * 10) : 0;
+    const mult = acc >= 0.9 ? 1 + 0.25 * S.streak : 1;
+    if (acc >= 0.9) S.streak++; else S.streak = 0;
+    const pts = Math.round((base + timeBonus) * mult);
+    S.score += pts;
+    S.results.push({ name: S.target.name, target: S.target.pts.slice(), yours: S.yours.slice(), acc, prop: SHOTS[S.shot].prop });
+
+    $('vTag').textContent = grade.label;
+    $('vTag').style.background = grade.color;
+    $('vTag').style.color = 'var(--ground)';
+    $('vAcc').textContent = Math.round(acc * 100) + '%';
+    $('vAcc').style.color = grade.color;
+    $('vPts').textContent = `+${pts.toLocaleString('en-US')}  ·  ${base} match` +
+      (timeBonus ? ` + ${timeBonus} time` : '') + (mult > 1 ? `  × ${mult.toFixed(2)} streak` : '');
+    const f = S.target.pts.map(v => +v.toFixed(3));
+    const y = S.yours.map(v => +v.toFixed(2));
+    $('vName').textContent = `Target: ${S.target.name}  cubic-bezier(${f.join(', ')})\nYours:  cubic-bezier(${y.join(', ')})`;
+    $('vName').style.whiteSpace = 'pre-wrap';
+    $('nextBtn').innerHTML = (S.shot + 1 >= SHOTS.length ? 'Final render' : 'Next shot') + ' <kbd>Enter</kbd>';
+    drawMini($('verdictCurve'), S.target.pts, S.yours);
+    $('verdictOv').hidden = false;
+    hud();
+
+    if (acc >= 0.88) {
+      const stage = $('stage');
+      stage.classList.remove('shake'); void stage.offsetWidth; stage.classList.add('shake');
+      flash(acc >= 0.95 ? C.ghost : C.yours);
+      blip(523, 0.08, 'square', 0.05); setTimeout(() => blip(784, 0.08), 80); setTimeout(() => blip(1046, 0.14), 160);
+    } else if (acc >= 0.6) {
+      blip(392, 0.1, 'triangle', 0.06); setTimeout(() => blip(523, 0.12, 'triangle', 0.06), 100);
+    } else {
+      flash(C.dim);
+      blip(220, 0.3, 'sawtooth', 0.04, 0.5);
+    }
+    setTimeout(() => $('nextBtn').focus(), 30);
+  }
+
+  function next() {
+    S.shot++;
+    if (S.shot >= SHOTS.length) return endGame();
+    beginShot();
+  }
+
+  function endGame() {
+    S.phase = 'end';
+    $('verdictOv').hidden = true;
+    const avg = S.results.reduce((a, r) => a + r.acc, 0) / S.results.length;
+    const grade = gradeFor(avg);
+    const newBest = S.score > best;
+    if (newBest) { best = S.score; try { localStorage.setItem('easeMatch.best', String(best)); } catch (e) {} }
+    $('eTag').textContent = newBest ? 'New best' : 'Final render';
+    $('eTag').style.background = newBest ? 'var(--ghost)' : 'var(--panel-hi)';
+    $('eTag').style.color = newBest ? 'var(--ground)' : 'var(--ink-dim)';
+    $('eTitle').textContent = S.score.toLocaleString('en-US') + ' pts';
+    $('eLine').innerHTML = `Average match <strong>${Math.round(avg * 100)}%</strong>, which grades as <strong>${grade.label}</strong>. Best run: <strong>${best.toLocaleString('en-US')}</strong>.`;
+    const reel = $('reel');
+    reel.innerHTML = '';
+    S.results.forEach((r, i) => {
+      const fig = document.createElement('figure');
+      const cv = document.createElement('canvas');
+      cv.width = 240; cv.height = 180;
+      const cap = document.createElement('figcaption');
+      cap.innerHTML = `<span>${String(i + 1).padStart(2, '0')}</span><span>${Math.round(r.acc * 100)}%</span>`;
+      cv.setAttribute('aria-label', `${r.name}: ${Math.round(r.acc * 100)}% match`);
+      cv.title = r.name;
+      fig.append(cv, cap); reel.append(fig);
+      drawMini(cv, r.target, r.yours);
+    });
+    $('endOv').hidden = false;
+    hud();
+    blip(523, 0.1); setTimeout(() => blip(659, 0.1), 110); setTimeout(() => blip(784, 0.1), 220); setTimeout(() => blip(1046, 0.25), 330);
+    setTimeout(() => $('againBtn').focus(), 30);
+  }
+
+  function newRun() {
+    Object.assign(S, { shot: 0, score: 0, streak: 0, used: new Set(), results: [] });
+    beginShot();
+  }
+
+  function drawMini(cv, target, yours) {
+    const ctx = cv.getContext('2d');
+    const w = cv.width, h = cv.height;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.fillStyle = C.ground; ctx.fillRect(0, 0, w, h);
+    const pad = w * 0.06;
+    const g = {
+      X: x => pad + x * (w - 2 * pad),
+      Y: y => pad + (1.6 - y) / 2.2 * (h - 2 * pad),
+    };
+    ctx.strokeStyle = C.line; ctx.lineWidth = 1;
+    [0, 1].forEach(v => { ctx.beginPath(); ctx.moveTo(g.X(0), g.Y(v)); ctx.lineTo(g.X(1), g.Y(v)); ctx.stroke(); });
+    // fill the gap between the curves
+    ctx.beginPath();
+    for (let i = 0; i <= 80; i++) { const x = i / 80; const p = [g.X(x), g.Y(ease(target, x))]; i ? ctx.lineTo(...p) : ctx.moveTo(...p); }
+    for (let i = 80; i >= 0; i--) { const x = i / 80; ctx.lineTo(g.X(x), g.Y(ease(yours, x))); }
+    ctx.closePath(); ctx.fillStyle = C.bad; ctx.globalAlpha = 0.18; ctx.fill(); ctx.globalAlpha = 1;
+    const lw = Math.max(2, w / 90);
+    ctx.lineWidth = lw; ctx.strokeStyle = C.ghost; curvePath(ctx, g, target, 80); ctx.stroke();
+    ctx.lineWidth = lw; ctx.strokeStyle = C.yours; curvePath(ctx, g, yours, 80); ctx.stroke();
+  }
+
+  function flash(color) {
+    const f = $('flash');
+    f.style.background = color;
+    f.classList.remove('go'); void f.offsetWidth; f.classList.add('go');
+  }
+
+  // ---------- Input ----------
+  $('startBtn').addEventListener('click', newRun);
+  $('renderBtn').addEventListener('click', render);
+  $('nextBtn').addEventListener('click', next);
+  $('againBtn').addEventListener('click', newRun);
+  $('resetBtn').addEventListener('click', () => { if (S.phase === 'play') { S.yours = LINEAR.slice(); syncInputs(); } });
+  $('soundBtn').addEventListener('click', () => {
+    S.sound = !S.sound;
+    $('soundBtn').textContent = 'Sound: ' + (S.sound ? 'on' : 'off');
+    $('soundBtn').setAttribute('aria-pressed', String(S.sound));
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key !== 'Enter' || e.repeat) return;
+    if (e.target && e.target.tagName === 'BUTTON') return; // the button handles its own Enter
+    e.preventDefault();
+    if (S.phase === 'intro' || S.phase === 'end') newRun();
+    else if (S.phase === 'play') render();
+    else if (S.phase === 'verdict') next();
+  });
+
+  // ---------- Loop ----------
+  let last = performance.now();
+  let lastTick = -1;
+  function frame(now) {
+    const dt = Math.min(0.1, (now - last) / 1000);
+    last = now;
+    if (S.phase === 'play') {
+      S.timeLeft = Math.max(0, S.timeLeft - dt);
+      const sec = Math.ceil(S.timeLeft);
+      if (sec <= 5 && sec !== lastTick && sec > 0) { lastTick = sec; blip(1200, 0.03, 'square', 0.025); }
+      if (S.timeLeft <= 0) render();
+      hud();
+    }
+    drawViewer(now);
+    drawGraph();
+    requestAnimationFrame(frame);
+  }
+
+  function start(data) {
+    if (data && Number(data.best) > best) best = Number(data.best);
+    readColors();
+    if (best > 0) $('bestLine').textContent = 'Best run: ' + best.toLocaleString('en-US');
+    S.target = PRESETS.find(p => p.name === 'Back Out');
+    S.yours = PRESETS.find(p => p.name === 'Cubic Out').pts.slice();
+    syncInputs();
+    hud();
+    requestAnimationFrame(frame);
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(readColors);
+  }
+  window.claude?.hot?.snapshot?.(() => ({ best }));
+  window.claude?.hot?.ready ? window.claude.hot.ready(start) : start(window.claude?.hot?.data ?? {});
+})();
+</script>
