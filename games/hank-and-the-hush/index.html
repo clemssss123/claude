@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Hank and the Hush</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Bungee&display=swap">
+<style>
+  /* One look on purpose: a night-ink frame around the game, the same in light and dark. */
+  :root {
+    --ink: #12101f;
+    --ink-2: #1f1a36;
+    --paper: #f7f0e3;
+    --gold: #ffc83d;
+    --hank: #ff5b3a;
+    --muted: #9a94bd;
+    --display: Bungee, "Arial Black", Impact, sans-serif;
+    --body: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
+    color-scheme: dark;
+  }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background: var(--ink);
+    color: var(--paper);
+    overflow: hidden;
+    overscroll-behavior: none;
+    touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    font-family: var(--body);
+  }
+  #stage {
+    position: fixed;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    box-sizing: border-box;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+  }
+  canvas {
+    display: block;
+    border-radius: 6px;
+    box-shadow: 0 0 0 1px #2c2748, 0 24px 60px rgba(0, 0, 0, 0.5);
+    outline: none;
+  }
+  canvas:focus-visible { box-shadow: 0 0 0 2px var(--gold); }
+
+  #touch { position: fixed; inset: 0; pointer-events: none; z-index: 5; }
+  #touch button {
+    pointer-events: auto;
+    position: absolute;
+    border: 2px solid rgba(247, 240, 227, 0.35);
+    background: rgba(18, 16, 31, 0.3);
+    color: var(--paper);
+    font: 14px/1 var(--display);
+    letter-spacing: 0.04em;
+    border-radius: 50%;
+    touch-action: none;
+    display: grid;
+    place-items: center;
+    padding: 0;
+  }
+  #touch button.on { background: rgba(255, 200, 61, 0.45); border-color: var(--gold); }
+  .dpad { position: absolute; left: max(16px, env(safe-area-inset-left, 0px)); bottom: calc(16px + env(safe-area-inset-bottom, 0px)); width: 168px; height: 168px; }
+  .dpad button { width: 60px; height: 60px; }
+  .t-up { left: 54px; top: 0; }
+  .t-down { left: 54px; bottom: 0; }
+  .t-left { left: 0; top: 54px; }
+  .t-right { right: 0; top: 54px; }
+  .acts { position: absolute; right: max(16px, env(safe-area-inset-right, 0px)); bottom: calc(16px + env(safe-area-inset-bottom, 0px)); width: 196px; height: 168px; }
+  .t-jump { width: 84px !important; height: 84px !important; right: 0; bottom: 0; font-size: 18px !important; background: rgba(255, 91, 58, 0.4) !important; }
+  .t-hammer { width: 64px; height: 64px; right: 96px; bottom: 6px; font-size: 10px !important; }
+  .t-dash { width: 64px; height: 64px; right: 40px; bottom: 98px; font-size: 11px !important; }
+  .t-pause { width: 44px; height: 44px; right: max(16px, env(safe-area-inset-right, 0px)); top: calc(12px + env(safe-area-inset-top, 0px)); font-size: 12px !important; }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="game" tabindex="0" aria-label="Hank and the Hush, a platform game. Use the arrow keys to move and Space to hop."></canvas>
+</div>
+<div id="touch" hidden>
+  <div class="dpad">
+    <button type="button" class="t-up" data-act="up" aria-label="Up">&#9650;</button>
+    <button type="button" class="t-left" data-act="left" aria-label="Left">&#9664;</button>
+    <button type="button" class="t-right" data-act="right" aria-label="Right">&#9654;</button>
+    <button type="button" class="t-down" data-act="down" aria-label="Down">&#9660;</button>
+  </div>
+  <div class="acts">
+    <button type="button" class="t-dash" data-act="dash">DASH</button>
+    <button type="button" class="t-hammer" data-act="hammer">HAMMER</button>
+    <button type="button" class="t-jump" data-act="jump">HOP</button>
+  </div>
+  <button type="button" class="t-pause" data-act="pause" aria-label="Pause">II</button>
+</div>
+<script src="js/core.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/levels.js"></script>
+<script src="js/art.js"></script>
+<script src="js/entities.js"></script>
+<script src="js/stage.js"></script>
+<script src="js/scenes.js"></script>
+</body>
+</html>
