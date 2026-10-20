@@ -1,0 +1,1657 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Rind &amp; Run</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bitter:wght@400;600;700&family=Cabin+Sketch:wght@700&family=Courier+Prime:wght@400;700&family=Kalam:wght@700&display=swap">
+<style>
+:root {
+  /* Layout: the hill on top, the bookie's chalk board under it, a printed slip pinned beside them (phones stack hill, slip, board). */
+  --page: #142019;
+  --board: #1e2c24;
+  --board-glow: #28392f;
+  --frame: #6e4b2c;
+  --frame-dark: #4a311b;
+  --chalk: #edebe0;
+  --chalk-dim: #a7b1a3;
+  --chalk-line: rgba(237, 235, 224, 0.2);
+  --chalk-wash: rgba(237, 235, 224, 0.08);
+  --cheese: #f4b942;
+  --paper: #fbfaf4;
+  --paper-hi: #ffffff;
+  --ink: #232b26;
+  --ink-dim: #646c64;
+  --rule: #c9c6b8;
+  --won: #1d7a44;
+  --lost: #b1402c;
+  --up: #93d6a0;
+  --down: #f39a80;
+  --grain: linear-gradient(transparent, transparent);
+  --font-display: "Cabin Sketch", "Bitter", Georgia, serif;
+  --font-body: "Bitter", Georgia, "Times New Roman", serif;
+  --font-chalk: "Kalam", "Bradley Hand", "Segoe Print", "Comic Sans MS", cursive;
+  --font-slip: "Courier Prime", "Courier New", Courier, monospace;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { background: var(--page); }
+body {
+  margin: 0;
+  background: var(--page);
+  color: var(--chalk);
+  font: 400 1rem/1.5 var(--font-body);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 22px 40px;
+}
+button { font: inherit; }
+[hidden] { display: none !important; }
+:focus-visible { outline: 2px solid var(--cheese); outline-offset: 2px; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+.wrap { max-width: 1180px; margin: 0 auto; display: grid; gap: 22px; }
+
+/* Masthead */
+.top { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 14px 28px; }
+h1 {
+  margin: 0;
+  font: 700 clamp(2.6rem, 8vw, 4.4rem)/0.92 var(--font-display);
+  color: var(--cheese);
+  letter-spacing: 0.01em;
+  text-wrap: balance;
+}
+.tagline { margin: 8px 0 0; max-width: 52ch; color: var(--chalk-dim); }
+.bankroll { text-align: right; }
+.bankroll .label, .eyebrow {
+  font-size: 0.72rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--chalk-dim);
+}
+.bankroll .num {
+  font: 700 clamp(2.1rem, 6vw, 3rem)/1 var(--font-chalk);
+  font-variant-numeric: tabular-nums;
+  color: var(--chalk);
+  transition: color 0.8s ease;
+}
+.bankroll .unit { font: 400 1rem var(--font-body); color: var(--chalk-dim); }
+.bankroll .num.up { color: var(--up); transition: none; }
+.bankroll .num.down { color: var(--down); transition: none; }
+
+/* Page grid */
+.layout { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 22px; align-items: start; }
+.main { display: grid; gap: 22px; min-width: 0; }
+
+/* The hill */
+.track { display: grid; gap: 10px; min-width: 0; }
+.stage { border: 3px solid var(--frame); border-radius: 12px; overflow: hidden; background: var(--board); }
+.stage canvas { display: block; width: 100%; height: 300px; }
+.track-bar { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px 16px; }
+.calls {
+  flex: 1 1 18rem; min-width: 0; min-height: 4.4em;
+  list-style: none; margin: 0; padding: 0;
+  font: 700 1.05rem/1.35 var(--font-chalk);
+  color: var(--chalk-dim);
+}
+.calls li:first-child { color: var(--chalk); font-size: 1.2rem; }
+.calls li:nth-child(n + 3) { opacity: 0.6; }
+.chalk-btn {
+  font: 700 0.9rem/1 var(--font-body);
+  color: var(--chalk); background: transparent;
+  border: 2px solid var(--chalk-line); border-radius: 999px;
+  padding: 9px 14px; cursor: pointer;
+}
+.chalk-btn:hover { border-color: var(--chalk); }
+.order { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.order li {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 3px 10px 3px 4px; border-radius: 999px;
+  background: var(--chalk-wash); font-size: 0.85rem;
+}
+.order .pos { min-width: 1.6em; text-align: right; font-weight: 700; color: var(--chalk-dim); font-variant-numeric: tabular-nums; }
+.order li.out { opacity: 0.55; }
+.order li.out .nm { text-decoration: line-through; }
+.mini, .cloth { display: inline-grid; place-items: center; font-weight: 700; border-radius: 5px; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.3); }
+.mini { width: 1.4rem; height: 1.4rem; font-size: 0.78rem; }
+
+/* The chalk board */
+.board {
+  min-width: 0;
+  background: var(--grain), radial-gradient(130% 90% at 25% 0%, var(--board-glow) 0%, var(--board) 62%), var(--board);
+  border: 10px solid var(--frame);
+  border-radius: 6px;
+  box-shadow: inset 0 0 0 2px var(--frame-dark), inset 0 0 50px rgba(0, 0, 0, 0.45), 0 10px 26px rgba(0, 0, 0, 0.35);
+  padding: 18px clamp(12px, 3vw, 26px) 20px;
+}
+.board-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 10px 24px; }
+.board h2 { margin: 0; font: 700 clamp(1.5rem, 4vw, 2.1rem)/1.1 var(--font-display); text-wrap: balance; }
+.going { margin: 4px 0 0; color: var(--chalk-dim); max-width: 48ch; }
+.nap { margin: 0; text-align: right; font: 700 1.05rem/1.25 var(--font-chalk); color: var(--cheese); }
+.nap .eyebrow { display: block; font-family: var(--font-body); font-weight: 400; }
+.nap .why { display: block; font-size: 0.9rem; color: var(--chalk-dim); }
+
+.cols, .runner {
+  display: grid;
+  grid-template-columns: 2.4rem minmax(0, 1fr) 4.4rem 4.4rem 6.8rem;
+  grid-template-areas: "cloth who form odds act";
+  gap: 4px 14px;
+  align-items: center;
+}
+.cols { padding: 16px 0 6px; font-size: 0.72rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--chalk-dim); }
+.cols .r { text-align: right; }
+.runners { list-style: none; margin: 0; padding: 0; }
+.runner { padding: 12px 0; border-top: 1.5px dashed var(--chalk-line); }
+.cloth { grid-area: cloth; width: 2.3rem; height: 2.3rem; font-size: 1.1rem; }
+.who { grid-area: who; min-width: 0; }
+.name { font-weight: 600; font-size: 1.08rem; line-height: 1.25; }
+.meta { font-size: 0.86rem; color: var(--chalk-dim); }
+.tag {
+  display: inline-block; margin-left: 8px; padding: 2px 6px; border-radius: 3px; vertical-align: 2px;
+  font: 700 0.66rem/1.3 var(--font-body); letter-spacing: 0.1em; text-transform: uppercase;
+  background: var(--cheese); color: var(--board);
+}
+.form { grid-area: form; font: 700 1.15rem/1 var(--font-chalk); letter-spacing: 0.1em; }
+.odds { grid-area: odds; text-align: right; font: 700 1.65rem/1 var(--font-chalk); color: var(--cheese); white-space: nowrap; }
+.act { grid-area: act; justify-self: end; }
+.back {
+  min-width: 6.4rem; padding: 9px 12px; cursor: pointer;
+  font: 700 0.92rem/1 var(--font-body);
+  color: var(--chalk); background: transparent;
+  border: 2px solid var(--chalk); border-radius: 999px;
+}
+.back:hover { background: var(--cheese); border-color: var(--cheese); color: var(--board); }
+.back.on { background: var(--chalk); color: var(--board); }
+.placing { font: 700 1.2rem/1 var(--font-chalk); color: var(--chalk-dim); padding: 6px 10px; }
+.placing.first { color: var(--cheese); border: 2px solid var(--cheese); border-radius: 50%; }
+.runner.won .name { color: var(--cheese); }
+.legend { margin: 14px 0 0; padding-top: 12px; border-top: 1.5px dashed var(--chalk-line); font-size: 0.84rem; color: var(--chalk-dim); }
+
+/* The betting slip */
+.slip {
+  position: sticky; top: calc(env(safe-area-inset-top, 0px) + 16px);
+  display: grid; gap: 14px;
+  padding: 26px 18px 20px;
+  background: var(--paper); color: var(--ink);
+  font: 400 0.95rem/1.45 var(--font-slip);
+  border-radius: 3px;
+  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.4);
+  color-scheme: light;
+}
+.slip::before {
+  content: ""; position: absolute; inset: 0 0 auto; height: 10px;
+  background: radial-gradient(circle at 7px 0, var(--page) 5px, transparent 5.5px) 0 0 / 14px 10px repeat-x;
+}
+.slip :focus-visible { outline-color: var(--ink); }
+.slip-head { display: flex; justify-content: space-between; gap: 12px; padding-bottom: 10px; border-bottom: 1.5px dashed var(--rule); }
+.house { font-weight: 700; font-size: 0.8rem; line-height: 1.3; letter-spacing: 0.06em; text-transform: uppercase; }
+.slip-no { font-size: 0.8rem; color: var(--ink-dim); text-align: right; white-space: pre-line; }
+.builder { display: grid; gap: 10px; }
+.types { display: grid; grid-template-columns: repeat(3, 1fr); margin: 0; padding: 0; border: 1.5px solid var(--ink); border-radius: 4px; overflow: hidden; }
+.types label { position: relative; cursor: pointer; }
+.types input { position: absolute; inset: 0; margin: 0; opacity: 0; cursor: pointer; }
+.types span { display: block; padding: 8px 4px; text-align: center; font-weight: 700; font-size: 0.85rem; }
+.types label + label span { border-left: 1.5px solid var(--ink); }
+.types input:checked + span { background: var(--ink); color: var(--paper); }
+.types input:focus-visible + span { outline: 2px solid var(--cheese); outline-offset: -5px; }
+.help { margin: 0; min-height: 2.9em; font-size: 0.84rem; color: var(--ink-dim); }
+.stake-label { font-weight: 700; font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase; }
+#stake {
+  width: 100%; padding: 8px 10px;
+  font: 700 1.3rem var(--font-slip); color: var(--ink);
+  background: var(--paper-hi); border: 1.5px solid var(--ink); border-radius: 4px;
+}
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chips button {
+  padding: 6px 11px; cursor: pointer;
+  font: 700 0.85rem var(--font-slip); color: var(--ink);
+  background: transparent; border: 1.5px solid var(--ink); border-radius: 999px;
+}
+.chips button:hover { background: var(--ink); color: var(--paper); }
+.bets { display: grid; }
+.empty { margin: 0; color: var(--ink-dim); font-size: 0.88rem; }
+.bet { display: grid; gap: 3px; padding: 10px 0; border-top: 1.5px dashed var(--rule); }
+.bet:first-child { border-top: 0; padding-top: 0; }
+.bet-line { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.bet-sel { min-width: 0; font-weight: 700; }
+.bet-type { flex: none; font-weight: 700; font-size: 0.74rem; letter-spacing: 0.08em; text-transform: uppercase; }
+.dim { font-size: 0.86rem; color: var(--ink-dim); }
+.bet-act { display: flex; justify-content: flex-end; padding-top: 4px; }
+.linkish { padding: 2px 0; cursor: pointer; color: var(--ink-dim); background: none; border: 0; text-decoration: underline; font: 400 0.85rem var(--font-slip); }
+.cash {
+  padding: 7px 12px; cursor: pointer;
+  font: 700 0.9rem var(--font-slip); color: var(--paper);
+  background: var(--ink); border: 0; border-radius: 4px;
+}
+.cash:disabled { opacity: 0.4; cursor: default; }
+.stamp {
+  padding: 2px 8px; transform: rotate(-4deg);
+  font: 700 0.85rem var(--font-slip); letter-spacing: 0.12em; text-transform: uppercase;
+  border: 2px solid currentColor; border-radius: 4px;
+}
+.stamp.won { color: var(--won); }
+.stamp.lost { color: var(--lost); }
+.stamp.cashed { color: var(--ink); }
+.totals { display: grid; gap: 2px; padding-top: 10px; border-top: 1.5px solid var(--ink); font-variant-numeric: tabular-nums; }
+.totals div { display: flex; justify-content: space-between; gap: 10px; }
+.totals .net { font-weight: 700; }
+.totals .net.won { color: var(--won); }
+.totals .net.lost { color: var(--lost); }
+.bailout { display: grid; gap: 8px; padding: 10px 12px; border: 1.5px dashed var(--lost); border-radius: 4px; }
+.bailout p { margin: 0; font-size: 0.88rem; }
+.bailout button {
+  justify-self: start; padding: 7px 12px; cursor: pointer;
+  font: 700 0.88rem var(--font-slip); color: var(--lost); background: transparent;
+  border: 1.5px solid var(--lost); border-radius: 4px;
+}
+.go {
+  padding: 13px; cursor: pointer;
+  font: 700 1.15rem var(--font-body); color: var(--ink);
+  background: var(--cheese); border: 2px solid var(--ink); border-radius: 6px;
+  box-shadow: 0 3px 0 var(--ink);
+}
+.go:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--ink); }
+.go:disabled { cursor: progress; opacity: 0.7; }
+
+/* Footer */
+.foot {
+  display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 16px 32px;
+  padding-top: 18px; border-top: 1.5px dashed var(--chalk-line); color: var(--chalk-dim);
+}
+.stats { display: flex; flex-wrap: wrap; gap: 12px 30px; margin: 0; }
+.stats dt { font-size: 0.72rem; letter-spacing: 0.14em; text-transform: uppercase; }
+.stats dd { margin: 0; font: 700 1.5rem/1.1 var(--font-chalk); color: var(--chalk); font-variant-numeric: tabular-nums; }
+.foot-end { display: grid; justify-items: end; gap: 8px; max-width: 30rem; text-align: right; font-size: 0.86rem; }
+.foot-end p { margin: 0; }
+
+.toast {
+  position: fixed; left: 50%; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); z-index: 20;
+  max-width: calc(100% - 32px); padding: 10px 16px; transform: translateX(-50%);
+  font: 700 0.92rem/1.35 var(--font-slip); color: var(--ink); background: var(--paper);
+  border-radius: 4px; box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+}
+
+@media (max-width: 900px) {
+  .layout { grid-template-columns: minmax(0, 1fr); }
+  .main { display: contents; }
+  .track { order: 1; }
+  .slip { order: 2; position: relative; top: auto; }
+  .board { order: 3; }
+}
+@media (max-width: 600px) {
+  .bankroll { text-align: left; }
+  .cols { display: none; }
+  .runner {
+    grid-template-columns: 2.4rem minmax(0, 1fr) auto;
+    grid-template-areas: "cloth who odds" "cloth form act";
+    row-gap: 10px;
+  }
+  .cloth { align-self: start; }
+  .form::before { content: "Form "; font: 400 0.72rem var(--font-body); letter-spacing: 0.12em; text-transform: uppercase; color: var(--chalk-dim); }
+  .nap { text-align: left; }
+  .foot-end { justify-items: start; text-align: left; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bankroll .num { transition: none; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>Rind &amp; Run</h1>
+      <p class="tagline">Cheese rolling, with odds. Six wheels go down Bramble Hill, 200 yards at one in two. Back one and hope it doesn't splat.</p>
+    </div>
+    <div class="bankroll">
+      <div class="label">Bankroll</div>
+      <div class="num" id="bankBox"><span id="bank">100</span> <span class="unit">curds</span></div>
+    </div>
+  </header>
+
+  <div class="layout">
+    <div class="main">
+      <section class="track" aria-label="The race">
+        <div class="stage" id="stage"><canvas id="hill" role="img" aria-label="Six cheeses on the course at Bramble Hill"></canvas></div>
+        <div class="track-bar">
+          <ol class="calls" id="calls" aria-live="polite"></ol>
+          <button type="button" class="chalk-btn" id="skip" hidden>Skip to the result</button>
+        </div>
+        <ol class="order" id="order" aria-label="Running order"></ol>
+      </section>
+
+      <section class="board" aria-labelledby="raceTitle">
+        <div class="board-head">
+          <div>
+            <h2 id="raceTitle">Race 1</h2>
+            <p class="going" id="going"></p>
+          </div>
+          <p class="nap" id="nap"></p>
+        </div>
+        <div class="cols" aria-hidden="true"><span>No.</span><span>Cheese</span><span>Form</span><span class="r">Odds</span><span></span></div>
+        <ol class="runners" id="runners"></ol>
+        <p class="legend">Form runs oldest to newest: 1 to 6 is where it finished, S splatted, C left the course, P pulled up. Each-way pays a quarter of the odds on 1st or 2nd.</p>
+      </section>
+    </div>
+
+    <aside class="slip" id="slip" aria-label="Betting slip">
+      <div class="slip-head">
+        <div class="house">Bramble Hill<br>Turf Accountants</div>
+        <div class="slip-no" id="slipNo"></div>
+      </div>
+      <div class="builder" id="builder">
+        <fieldset class="types">
+          <legend class="sr">Bet type</legend>
+          <label><input type="radio" name="btype" id="bt-win" value="win" checked><span>Win</span></label>
+          <label><input type="radio" name="btype" id="bt-ew" value="ew"><span>Each-way</span></label>
+          <label><input type="radio" name="btype" id="bt-fc" value="fc"><span>Forecast</span></label>
+        </fieldset>
+        <p class="help" id="typeHelp"></p>
+        <label class="stake-label" for="stake">Stake per bet</label>
+        <input id="stake" type="number" inputmode="numeric" min="1" step="1" value="10">
+        <div class="chips" id="chips">
+          <button type="button" data-stake="5">5</button>
+          <button type="button" data-stake="10">10</button>
+          <button type="button" data-stake="25">25</button>
+          <button type="button" data-stake="50">50</button>
+          <button type="button" data-stake="all">All in</button>
+        </div>
+      </div>
+      <div class="bets" id="bets"></div>
+      <div class="totals" id="totals"></div>
+      <div class="bailout" id="bailout" hidden>
+        <p>You're out of curds. The Dairy Board will lend you 50 to keep you in the game.</p>
+        <button type="button" id="bail">Take the 50 curds</button>
+      </div>
+      <button type="button" class="go" id="go">Off they go</button>
+    </aside>
+  </div>
+
+  <footer class="foot">
+    <dl class="stats">
+      <div><dt>Races run</dt><dd id="stRaces">0</dd></div>
+      <div><dt>Biggest win</dt><dd id="stBig">0</dd></div>
+      <div><dt>Best bankroll</dt><dd id="stBest">100</dd></div>
+      <div><dt>Bailouts</dt><dd id="stBail">0</dd></div>
+    </dl>
+    <div class="foot-end">
+      <p>Curds are pretend: no real money, no real cheese. Inspired by the cheese-rolling races of Gloucestershire.</p>
+      <button type="button" class="chalk-btn" id="reset">Start over</button>
+    </div>
+  </footer>
+</div>
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script>
+(() => {
+'use strict';
+
+// --- SIM START ---
+const TRACK = 200; // yards, start ramp to the fence
+const DT = 1 / 30;
+const MAX_T = 40;
+const GRAV = 16;
+
+const CHEESES = [
+  { id: 'dg', name: 'Double Gloucester', short: 'Gloucester', kg: 3.6, round: 0.93, firm: 0.72, grip: 0.62, pace: 1, face: '#f0a23b', rim: '#b8611c', note: 'The traditional runner. Has done this hill before.' },
+  { id: 'pr', name: 'Parmigiano Reggiano', short: 'Parmigiano', kg: 38, round: 0.9, firm: 0.98, grip: 0.5, pace: 1, face: '#f2d27c', rim: '#b88a35', dots: true, note: 'Thirty-eight kilos. Slow away, hard to stop.' },
+  { id: 'bm', name: 'Brie de Meaux', short: 'Brie', kg: 2.8, round: 0.76, firm: 0.22, grip: 0.55, pace: 1.1, face: '#f3eee2', rim: '#d3c7ac', note: 'Quick when it is cold. Liable to splat.' },
+  { id: 'em', name: 'Emmental', short: 'Emmental', kg: 14, round: 0.86, firm: 0.8, grip: 0.45, pace: 0.975, face: '#f7df7a', rim: '#cfa648', holes: true, note: 'Full of holes. Insists they help.' },
+  { id: 'gd', name: 'Aged Gouda', short: 'Gouda', kg: 4.5, round: 0.97, firm: 0.88, grip: 0.4, pace: 0.98, face: '#3a332d', rim: '#1f1b18', mark: '#e9a93a', note: 'Black wax, very round. Bounces off everything.' },
+  { id: 'cb', name: 'Camembert', short: 'Camembert', kg: 0.25, round: 0.84, firm: 0.32, grip: 0.6, pace: 1.24, face: '#f5f1e6', rim: '#d9cfb8', note: 'Tiny. The wind does what it likes with it.' },
+  { id: 'sb', name: 'Stinking Bishop', short: 'Bishop', kg: 1.8, round: 0.8, firm: 0.33, grip: 0.58, pace: 1.075, face: '#e2a560', rim: '#a8642d', smelly: true, note: 'Local cheese. Dogs follow the smell.' },
+  { id: 'mc', name: 'Manchego', short: 'Manchego', kg: 3, round: 0.9, firm: 0.82, grip: 0.92, pace: 1, face: '#e9d79a', rim: '#8a6a35', note: 'Basket-weave rind grips the turf.' },
+  { id: 'ed', name: 'Edam', short: 'Edam', kg: 1.7, round: 1, firm: 0.76, grip: 0.3, pace: 1.05, face: '#d62f2a', rim: '#9e1f1b', ball: true, note: 'A ball, not a wheel. Goes where it wants.' },
+  { id: 'ct', name: 'Comté', short: 'Comté', kg: 40, round: 0.88, firm: 0.95, grip: 0.55, pace: 1.01, face: '#d9a855', rim: '#8f6a2c', note: 'Mountain cheese. Built like a millstone.' },
+  { id: 'rl', name: 'Red Leicester', short: 'Leicester', kg: 4.2, round: 0.9, firm: 0.68, grip: 0.6, pace: 1, face: '#e56f24', rim: '#a8481a', note: 'Steady. Never wins pretty.' },
+  { id: 'wd', name: 'Wensleydale', short: 'Wensleydale', kg: 2.1, round: 0.82, firm: 0.42, grip: 0.6, pace: 1.07, face: '#f6f0da', rim: '#d6c9a2', crumbly: true, note: 'Crumbly. Leaves bits of itself on every bump.' },
+];
+
+const WEATHER = [
+  { id: 'sun', label: 'Sunny, 24°C', going: 'Firm', tip: 'Soft cheeses are sweating.', soften: -0.2, rr: 0.95, wind: 0, slick: 1, sky: ['#7fbde4', '#dff0ea'], far: '#9cc4a6', mid: '#84b787' },
+  { id: 'drizzle', label: 'Drizzle, 11°C', going: 'Soft', tip: 'Slick grass. Fast, and hard to steer.', soften: 0.06, rr: 0.72, wind: 0, slick: 2.2, sky: ['#8f9ca4', '#cbd2d0'], far: '#93a99c', mid: '#7e9d85' },
+  { id: 'wind', label: 'Gusty, 14°C', going: 'Good', tip: 'Light cheeses will get blown about.', soften: 0, rr: 1, wind: 1, slick: 1.1, sky: ['#8fc3e2', '#e3efe7'], far: '#a1c2a7', mid: '#8ab68d' },
+  { id: 'overcast', label: 'Overcast, 16°C', going: 'Good', tip: 'Fair conditions. No excuses today.', soften: 0, rr: 1, wind: 0.15, slick: 1, sky: ['#b2c0c7', '#e2e7e2'], far: '#9fb6a3', mid: '#89ad8c' },
+];
+
+const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+// The hill: gentle off the ramp, steepest halfway (1 in 2 and then some), easing at the bottom.
+function slope(x) { return x >= TRACK ? 0 : 0.42 + 0.42 * Math.sin((Math.PI * x) / TRACK); }
+function heightAt(x) {
+  const xx = clamp(x, 0, TRACK);
+  return 0.42 * xx + ((0.42 * TRACK) / Math.PI) * (1 - Math.cos((Math.PI * xx) / TRACK));
+}
+const H_TOTAL = heightAt(TRACK);
+
+// Per-race handling numbers for one cheese in one weather.
+function prep(c, w) {
+  const firm = clamp(c.firm + (c.firm < 0.5 ? w.soften : w.soften * 0.25), 0.03, 1);
+  return {
+    firm,
+    rr: (0.08 + (1 - c.round) * 0.32) * w.rr,
+    grip: 1 - (1 - c.grip) * 0.05 * w.slick,
+    tau: 0.15 + c.kg / 30,
+    drag: 0.0176 / Math.pow(c.kg, 1 / 6),
+    wob: c.ball ? 1.3 : 0.3 + (1 - c.round) * 1.4,
+    light: c.kg < 1 ? 1.7 : c.kg < 2.5 ? 1.25 : c.kg > 10 ? 0.6 : 1,
+    offc: (c.ball ? 0.0006 : (1 - c.round) * 0.001) * w.slick * (1.3 - c.grip),
+    dog: c.smelly ? 0.0012 : 0.00015,
+    pace: c.pace,
+  };
+}
+
+function newRace(field) {
+  return {
+    t: 0, tick: 0, finished: 0,
+    rs: field.map(() => ({ x: 0, v: 0, y: 0, vy: 0, ang: 0, lat: 0, st: 0, why: '', fin: 0, stun: 0, chase: 0, bump: 0 })),
+  };
+}
+
+function cloneRace(r) {
+  return { t: r.t, tick: r.tick, finished: r.finished, rs: r.rs.map((o) => ({ ...o })) };
+}
+
+const running = (race) => race.rs.some((r) => r.st === 0);
+
+// st: 0 rolling, 1 past the post, 2 out (why: S splatted, C left the course, P pulled up)
+function step(race, P, field, w, rng, log) {
+  const t = race.t;
+  for (let i = 0; i < race.rs.length; i++) {
+    const r = race.rs[i];
+    const p = P[i];
+    r.bump = 0;
+    if (r.st === 2) {
+      if (r.why === 'C') { r.lat += 3 * DT; r.x += r.v * DT; r.v *= 0.95; }
+      continue;
+    }
+    if (r.st === 1) {
+      r.x += r.v * DT; r.v *= 0.93; r.ang += (r.v * DT) / 2.5;
+      continue;
+    }
+    if (r.stun > 0) {
+      r.stun -= DT; r.v = 0;
+      continue;
+    }
+    let a = GRAV * slope(r.x) * (1 - p.rr) * p.grip * p.pace * (1 - Math.exp(-(t + DT) / p.tau));
+    if (r.chase > 0) { a += 6; r.chase -= DT; }
+    a -= p.drag * r.v * r.v;
+    r.v += a * DT + (rng() - 0.5) * p.wob;
+    if (w.wind) {
+      r.v += (rng() - 0.5) * w.wind * p.light * 0.8;
+      if (rng() < 0.004 * w.wind * p.light * p.light) {
+        const back = rng() < 0.45;
+        r.v += back ? -(4 + rng() * 4) : 4 + rng() * 5;
+        if (log) log(i, back ? 'gustback' : 'gust');
+      }
+    }
+    if (rng() < 0.022) {
+      const loss = (0.03 + 0.13 * rng()) * (1.25 - 0.6 * p.firm) * (p.light > 1.2 ? 1.2 : 1);
+      r.v *= 1 - loss;
+      r.vy = 2 + rng() * 5 * Math.min(1, r.v / 20);
+      r.bump = 1;
+      if (p.firm < 0.45 && rng() < (0.45 - p.firm) * 0.09) {
+        r.st = 2; r.why = 'S'; r.v = 0;
+        if (log) log(i, 'splat');
+        continue;
+      }
+      if (field[i].crumbly && rng() < 0.3) { r.v *= 0.97; if (log) log(i, 'crumb'); }
+      if (r.vy > 5.6 && log) log(i, 'air');
+    }
+    if (rng() < p.offc) {
+      r.st = 2; r.why = 'C';
+      if (log) log(i, 'crowd');
+      continue;
+    }
+    if (rng() < 0.0004) {
+      r.stun = 0.4 + rng() * 0.6; r.v = 0;
+      if (log) log(i, 'rabbit');
+      continue;
+    }
+    if (r.chase <= 0 && rng() < p.dog) {
+      r.chase = 1.6;
+      if (log) log(i, 'dog');
+    }
+    if (t > 1 && r.v < 0.5) r.v = 0.5;
+    const x0 = r.x;
+    r.x += r.v * DT;
+    r.ang += (r.v * DT) / 2.5;
+    r.y = Math.max(0, r.y + r.vy * DT);
+    r.vy = r.y === 0 ? 0 : r.vy - 30 * DT;
+    if (r.x >= TRACK) {
+      r.st = 1;
+      r.fin = t + (DT * (TRACK - x0)) / Math.max(0.01, r.x - x0);
+      race.finished++;
+    }
+  }
+  race.t += DT;
+  race.tick++;
+  if (race.t > MAX_T) for (const r of race.rs) if (r.st === 0) { r.st = 2; r.why = 'P'; }
+}
+
+function finishOrder(race) {
+  return race.rs
+    .map((r, i) => [r, i])
+    .filter(([r]) => r.st === 1)
+    .sort((a, b) => a[0].fin - b[0].fin)
+    .map(([, i]) => i);
+}
+
+function runOut(race, P, field, w, rng) {
+  while (running(race)) step(race, P, field, w, rng, null);
+  return finishOrder(race);
+}
+
+// Monte Carlo the race n times from a given state: chances to win, to place (1st or 2nd), and each straight forecast.
+function chances(race, field, w, n, rng, P) {
+  P = P || field.map((c) => prep(c, w));
+  const k = field.length;
+  const win = new Array(k).fill(0);
+  const place = new Array(k).fill(0);
+  const pair = Array.from({ length: k }, () => new Array(k).fill(0));
+  for (let s = 0; s < n; s++) {
+    const o = runOut(cloneRace(race), P, field, w, rng);
+    if (o.length > 0) { win[o[0]]++; place[o[0]]++; }
+    if (o.length > 1) { place[o[1]]++; pair[o[0]][o[1]]++; }
+  }
+  return { n, win: win.map((v) => v / n), place: place.map((v) => v / n), pair: pair.map((row) => row.map((v) => v / n)) };
+}
+// --- SIM END ---
+
+// ---------------------------------------------------------------- the book
+
+const TAU = Math.PI * 2;
+if (typeof CanvasRenderingContext2D !== 'undefined' && !CanvasRenderingContext2D.prototype.roundRect) {
+  CanvasRenderingContext2D.prototype.roundRect = function (x, y, w, h) { this.rect(x, y, w, h); };
+}
+const PRICING_RUNS = 900;
+const CASH_RUNS = 120;
+const WIN_MARGIN = 1.18; // the bookie's overround on win prices
+const FC_MARGIN = 1.35;
+const CASH_KEEP = 0.9; // cash-out pays 90% of what the bet is worth right now
+const STORE = 'rind-and-run/v1';
+
+// The British odds ladder, shortest to longest. Prices are rounded down onto it, in the bookie's favour.
+const LADDER = [
+  [1, 5], [2, 9], [1, 4], [2, 7], [1, 3], [4, 11], [2, 5], [4, 9], [1, 2], [8, 15], [4, 7], [8, 13], [4, 6], [8, 11],
+  [4, 5], [5, 6], [10, 11], [1, 1], [11, 10], [6, 5], [5, 4], [11, 8], [6, 4], [13, 8], [7, 4], [15, 8], [2, 1], [9, 4],
+  [5, 2], [11, 4], [3, 1], [10, 3], [7, 2], [4, 1], [9, 2], [5, 1], [11, 2], [6, 1], [13, 2], [7, 1], [15, 2], [8, 1],
+  [9, 1], [10, 1], [11, 1], [12, 1], [14, 1], [16, 1], [18, 1], [20, 1], [22, 1], [25, 1], [28, 1], [33, 1], [40, 1],
+  [50, 1], [66, 1], [80, 1], [100, 1], [125, 1], [150, 1], [200, 1], [250, 1], [300, 1], [400, 1], [500, 1],
+];
+
+function price(p, margin, cap) {
+  const fair = 1 / Math.max(p * margin, 1e-6) - 1;
+  let best = LADDER[0];
+  for (const o of LADDER) {
+    const v = o[0] / o[1];
+    if (v > fair || v > cap) break;
+    best = o;
+  }
+  return best;
+}
+
+const SADDLE = [['#c8282d', '#ffffff'], ['#f4f1e8', '#1b1b1b'], ['#2a54b5', '#ffffff'], ['#f0c419', '#1b1b1b'], ['#2b8a3e', '#ffffff'], ['#151515', '#f0c419']];
+const RACE_NAMES = ['The Rennet Cup', "The Ploughman's Plate", 'The Whey Downs Stakes', 'The Muslin Handicap', 'The Curd Nursery Stakes',
+  'The Big Wheel Derby', "The Cheesemongers' Chase", 'The Farmhouse Gold Cup', 'The Wax Seal Sprint', 'The Bramble Hill Grand National'];
+const NAP_WHY = ['likes the going', 'fancies the weight', 'looked well on the ramp', 'had a word with the cheesemonger', 'just a hunch', 'dreamt about it'];
+const TYPE_HELP = {
+  win: 'Pays if your cheese reaches the bottom first.',
+  ew: 'Two bets in one: to win, and to finish 1st or 2nd at a quarter of the odds. Costs double the stake.',
+  fc: 'Name the 1st and 2nd in the right order. Long odds.',
+};
+const KIND = { win: 'Win', ew: 'Each-way', fc: 'Forecast' };
+const OUT_WORD = { S: 'Splat', C: 'Crowd', P: 'Pulled up' };
+const CALLS = {
+  splat: (n) => `${n} hits a tussock and splats. Out of the race.`,
+  crowd: (n) => `${n} veers off the course and into the crowd. Out.`,
+  rabbit: (n) => `${n} drops into a rabbit hole and stops dead!`,
+  dog: (n) => `A sheepdog breaks loose and chases ${n} down the hill!`,
+  gust: (n) => `A gust of wind carries ${n} forward.`,
+  gustback: (n) => `A gust shoves ${n} back up the slope!`,
+  crumb: (n) => `${n} leaves a chunk of itself on a bump.`,
+  air: (n) => `${n} takes off over a ridge!`,
+};
+const MINOR = { gust: 1, gustback: 1, crumb: 1, air: 1 };
+
+const BY_ID = Object.fromEntries(CHEESES.map((c) => [c.id, c]));
+const WX = Object.fromEntries(WEATHER.map((w) => [w.id, w]));
+const $ = (s) => document.querySelector(s);
+const reduced = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+const curds = (n) => Math.floor(n).toLocaleString('en-GB');
+const oddsText = ([n, d]) => (n === d ? 'Evs' : `${n}/${d}`);
+const ordinal = (n) => n + (n === 1 ? 'st' : n === 2 ? 'nd' : n === 3 ? 'rd' : 'th');
+const weight = (kg) => (kg < 1 ? `${Math.round(kg * 1000)} g` : `${kg} kg`);
+const texture = (c) => (c.crumbly ? 'Crumbly' : c.ball ? 'Waxed ball' : c.firm >= 0.9 ? 'Rock hard' : c.firm >= 0.65 ? 'Firm' : c.firm >= 0.3 ? 'Soft' : 'Runny');
+const costOf = (b) => (b.type === 'ew' ? b.stake * 2 : b.stake);
+
+function maxReturn(b) {
+  const [n, d] = b.odds;
+  const s = b.stake;
+  return Math.floor(b.type === 'ew' ? s * (1 + n / d) + s * (1 + n / (4 * d)) : s * (1 + n / d));
+}
+
+function settle(b, order) {
+  const [n, d] = b.odds;
+  const s = b.stake;
+  const sel = b.sel[0];
+  if (b.type === 'win') return order[0] === sel ? Math.floor(s * (1 + n / d)) : 0;
+  if (b.type === 'ew') {
+    let r = 0;
+    if (order[0] === sel) r += s * (1 + n / d);
+    if (order[0] === sel || order[1] === sel) r += s * (1 + n / (4 * d));
+    return Math.floor(r);
+  }
+  return order[0] === b.sel[0] && order[1] === b.sel[1] ? Math.floor(s * (1 + n / d)) : 0;
+}
+
+function worthNow(b, ch) {
+  const [n, d] = b.odds;
+  const s = b.stake;
+  let v;
+  if (b.type === 'win') v = s * (1 + n / d) * ch.win[b.sel[0]];
+  else if (b.type === 'ew') v = s * (1 + n / d) * ch.win[b.sel[0]] + s * (1 + n / (4 * d)) * ch.place[b.sel[0]];
+  else v = s * (1 + n / d) * ch.pair[b.sel[0]][b.sel[1]];
+  return Math.floor(v * CASH_KEEP);
+}
+
+function shuffle(a) {
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+// ---------------------------------------------------------------- saved game
+
+const fresh = () => ({ bank: 100, races: 0, biggest: 0, best: 100, bailouts: 0, slip: 0, form: {}, card: null });
+
+function load() {
+  try {
+    const s = JSON.parse(localStorage.getItem(STORE) || 'null');
+    if (s && typeof s.bank === 'number') return { ...fresh(), ...s };
+  } catch (e) { /* storage blocked: play without it */ }
+  return null;
+}
+
+function persist() {
+  try { localStorage.setItem(STORE, JSON.stringify(save)); } catch (e) { /* storage blocked */ }
+}
+
+function addForm(field, race, order) {
+  field.forEach((c, i) => {
+    const pos = order.indexOf(i);
+    const mark = pos >= 0 ? String(pos + 1) : race.rs[i].why || 'P';
+    save.form[c.id] = ((save.form[c.id] || '') + mark).slice(-5);
+  });
+}
+
+// A new player still gets a form guide: run a few unseen races first.
+function seedForm() {
+  for (let k = 0; k < 7; k++) {
+    const field = shuffle(CHEESES.slice()).slice(0, 6);
+    const w = WEATHER[Math.floor(Math.random() * WEATHER.length)];
+    const race = newRace(field);
+    const order = runOut(race, field.map((c) => prep(c, w)), field, w, Math.random);
+    addForm(field, race, order);
+  }
+}
+
+// Draw the field, pick the weather, and price it up by running the race in the bookie's head.
+function newCard() {
+  const field = shuffle(CHEESES.slice()).slice(0, 6);
+  const w = WEATHER[Math.floor(Math.random() * WEATHER.length)];
+  const seed = (Math.random() * 4294967296) >>> 0;
+  const ch = chances(newRace(field), field, w, PRICING_RUNS, Math.random);
+  const tip = mulberry32(seed ^ 0x5eed);
+  let nap = 0;
+  let best = -1;
+  ch.win.forEach((p, i) => {
+    const s = p * (0.4 + tip());
+    if (s > best) { best = s; nap = i; }
+  });
+  save.slip++;
+  save.card = {
+    no: save.races + 1,
+    ids: field.map((c) => c.id),
+    wx: w.id,
+    seed,
+    win: ch.win.map((p) => price(p, WIN_MARGIN, 100)),
+    fc: ch.pair.map((row, a) => row.map((p, b) => (a === b ? null : price(p, FC_MARGIN, 500)))),
+    nap: { i: nap, why: NAP_WHY[Math.floor(tip() * NAP_WHY.length)] },
+    bets: [],
+    nextId: 1,
+    started: false,
+  };
+  persist();
+}
+
+// ---------------------------------------------------------------- state
+
+let save = null;
+const ui = { phase: 'betting', type: 'win', stake: 10, fcFirst: null, result: null, resultCard: null };
+let pb = null; // the race being played back
+let lastFrame = null;
+let parts = [];
+
+const curCard = () => (ui.phase === 'result' ? ui.resultCard : save.card);
+const fieldOf = (card) => card.ids.map((id) => BY_ID[id]);
+const currentFrame = () => (pb ? pb.frames[pb.i] : lastFrame || newRace(fieldOf(curCard())));
+
+// ---------------------------------------------------------------- rendering: page
+
+let shownBank = null;
+function renderBank() {
+  const box = $('#bankBox');
+  if (shownBank !== null && save.bank !== shownBank) {
+    box.classList.remove('up', 'down');
+    void box.offsetWidth;
+    box.classList.add(save.bank > shownBank ? 'up' : 'down');
+    setTimeout(() => box.classList.remove('up', 'down'), 60);
+  }
+  shownBank = save.bank;
+  $('#bank').textContent = curds(save.bank);
+}
+
+function renderBoard() {
+  const card = curCard();
+  const field = fieldOf(card);
+  const w = WX[card.wx];
+  const res = ui.phase === 'result' ? ui.result : null;
+  const canBet = ui.phase === 'betting' && !card.started;
+  const backed = new Set(card.bets.flatMap((b) => b.sel));
+  $('#raceTitle').textContent = `Race ${card.no}: ${RACE_NAMES[(card.no - 1) % RACE_NAMES.length]}`;
+  $('#going').textContent = `Going ${w.going.toLowerCase()}. ${w.label}. ${w.tip}`;
+  $('#nap').innerHTML = `<span class="eyebrow">Old Tom's nap</span>#${card.nap.i + 1} ${field[card.nap.i].name}<span class="why">${card.nap.why}</span>`;
+
+  $('#runners').innerHTML = field.map((c, i) => {
+    const [bg, fg] = SADDLE[i];
+    let odds = oddsText(card.win[i]);
+    if (canBet && ui.type === 'fc' && ui.fcFirst !== null) odds = i === ui.fcFirst ? '1st' : oddsText(card.fc[ui.fcFirst][i]);
+    let act = '';
+    if (canBet) {
+      let label = ui.type === 'ew' ? 'Back E/W' : 'Back';
+      let on = false;
+      if (ui.type === 'fc') {
+        if (ui.fcFirst === null) label = 'Pick 1st';
+        else if (i === ui.fcFirst) { label = 'Undo 1st'; on = true; } else label = 'Pick 2nd';
+      }
+      act = `<button type="button" class="back${on ? ' on' : ''}" data-i="${i}" aria-label="${label}: ${c.name}">${label}</button>`;
+    } else if (res) {
+      const pos = res.order.indexOf(i);
+      act = pos >= 0
+        ? `<span class="placing${pos === 0 ? ' first' : ''}">${ordinal(pos + 1)}</span>`
+        : `<span class="placing">${OUT_WORD[res.why[i]] || 'Out'}</span>`;
+    }
+    const form = save.form[c.id] || '';
+    return `<li class="runner${res && res.order[0] === i ? ' won' : ''}">
+      <span class="cloth" style="background:${bg};color:${fg}">${i + 1}</span>
+      <div class="who"><div class="name">${c.name}${backed.has(i) ? '<span class="tag">Your bet</span>' : ''}</div>
+        <div class="meta">${weight(c.kg)} · ${texture(c)} · ${c.note}</div></div>
+      <div class="form" title="Form, oldest to newest">${form || '–'}</div>
+      <div class="odds">${odds}</div>
+      <div class="act">${act}</div>
+    </li>`;
+  }).join('');
+}
+
+function betHTML(b, card, field) {
+  const name = b.type === 'fc'
+    ? `#${b.sel[0] + 1} ${field[b.sel[0]].short}, then #${b.sel[1] + 1} ${field[b.sel[1]].short}`
+    : `#${b.sel[0] + 1} ${field[b.sel[0]].name}`;
+  const stake = b.type === 'ew' ? `${curds(b.stake)} E/W` : curds(b.stake);
+  let act = '';
+  if (b.status === 'won') act = `<span class="stamp won">Won ${curds(b.ret)}</span>`;
+  else if (b.status === 'lost') act = '<span class="stamp lost">Lost</span>';
+  else if (b.status === 'cashed') act = `<span class="stamp cashed">Cashed ${curds(b.ret)}</span>`;
+  else if (ui.phase === 'betting' && !card.started) act = `<button type="button" class="linkish" data-cancel="${b.id}">Cancel bet</button>`;
+  else if (ui.phase === 'racing') {
+    const v = b.cashNow;
+    act = `<button type="button" class="cash" data-cash="${b.id}"${v >= 1 ? '' : ' disabled'}>${v >= 1 ? `Cash out ${curds(v)}` : v === 0 ? 'No cash-out' : 'Cash out …'}</button>`;
+  }
+  return `<div class="bet">
+    <div class="bet-line"><span class="bet-sel">${name}</span><span class="bet-type">${KIND[b.type]}</span></div>
+    <div class="bet-line dim"><span>${stake} @ ${oddsText(b.odds)}</span><span>returns ${curds(maxReturn(b))}</span></div>
+    ${act ? `<div class="bet-act">${act}</div>` : ''}
+  </div>`;
+}
+
+function renderSlip() {
+  const card = curCard();
+  const field = fieldOf(card);
+  const canBet = ui.phase === 'betting' && !card.started;
+  $('#slipNo').textContent = `Slip ${String(save.slip).padStart(4, '0')}\nRace ${card.no}`;
+  $('#builder').hidden = !canBet;
+  let help = TYPE_HELP[ui.type];
+  if (ui.type === 'fc' && ui.fcFirst !== null) help = `1st: #${ui.fcFirst + 1} ${field[ui.fcFirst].name}. Now pick the cheese to come 2nd.`;
+  $('#typeHelp').textContent = help;
+  $('#stake').value = ui.stake;
+
+  $('#bets').innerHTML = card.bets.length
+    ? card.bets.map((b) => betHTML(b, card, field)).join('')
+    : `<p class="empty">${canBet ? 'No bets yet. Choose a bet type and a stake, then back a cheese on the board.' : 'No bets on this race.'}</p>`;
+
+  const staked = card.bets.reduce((s, b) => s + costOf(b), 0);
+  let totals = `<div><span>Staked</span><span>${curds(staked)}</span></div>`;
+  if (ui.phase === 'result') {
+    const net = ui.result.returned - staked;
+    totals += `<div><span>Returned</span><span>${curds(ui.result.returned)}</span></div>`;
+    totals += `<div class="net ${net > 0 ? 'won' : net < 0 ? 'lost' : ''}"><span>This race</span><span>${net > 0 ? '+' : net < 0 ? '−' : ''}${curds(Math.abs(net))}</span></div>`;
+  } else {
+    const best = card.bets.filter((b) => b.status === 'open').reduce((s, b) => s + maxReturn(b), 0);
+    if (card.bets.length) totals += `<div><span>Best case</span><span>${curds(best)}</span></div>`;
+  }
+  $('#totals').innerHTML = totals;
+  $('#totals').hidden = !card.bets.length;
+
+  $('#bailout').hidden = !(save.bank < 1 && (ui.phase === 'result' || (canBet && !card.bets.length)));
+
+  const go = $('#go');
+  go.hidden = ui.phase === 'racing';
+  go.textContent = ui.phase === 'result' ? 'Next race' : card.started ? 'Run the race' : card.bets.length ? 'Off they go' : 'Watch without betting';
+  $('#skip').hidden = ui.phase !== 'racing';
+}
+
+function renderOrder(fr) {
+  const card = curCard();
+  const field = fieldOf(card);
+  const grp = (r) => (r.st === 1 ? 0 : r.st === 0 ? 1 : 2);
+  let idx = field.map((c, i) => i);
+  const live = ui.phase !== 'betting';
+  if (live) {
+    idx = idx.sort((a, b) => {
+      const A = fr.rs[a];
+      const B = fr.rs[b];
+      return grp(A) - grp(B) || (grp(A) === 0 ? A.fin - B.fin : B.x - A.x);
+    });
+  }
+  $('#order').innerHTML = idx.map((i, p) => {
+    const r = fr.rs[i];
+    const out = r.st === 2;
+    const [bg, fg] = SADDLE[i];
+    const pos = !live ? '' : out ? r.why : String(p + 1);
+    return `<li class="${out ? 'out' : ''}">${live ? `<span class="pos">${pos}</span>` : ''}<span class="mini" style="background:${bg};color:${fg}">${i + 1}</span><span class="nm">${field[i].short}</span></li>`;
+  }).join('');
+}
+
+function renderStats() {
+  $('#stRaces').textContent = curds(save.races);
+  $('#stBig').textContent = curds(save.biggest);
+  $('#stBest').textContent = curds(save.best);
+  $('#stBail').textContent = curds(save.bailouts);
+}
+
+function renderAll() {
+  renderBank();
+  renderBoard();
+  renderSlip();
+  renderStats();
+  renderOrder(currentFrame());
+}
+
+function call(text) {
+  const list = $('#calls');
+  const li = document.createElement('li');
+  li.textContent = text;
+  list.prepend(li);
+  while (list.children.length > 4) list.lastElementChild.remove();
+}
+
+let toastTimer = 0;
+function toast(msg) {
+  const el = $('#toast');
+  el.textContent = msg;
+  el.hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.hidden = true; }, 2800);
+}
+
+const intro = (card) => {
+  const w = WX[card.wx];
+  return `Race ${card.no}. ${w.label}, going ${w.going.toLowerCase()}. Place your bets.`;
+};
+
+// ---------------------------------------------------------------- betting
+
+function back(i) {
+  const card = save.card;
+  if (ui.phase !== 'betting' || card.started) return;
+  const field = fieldOf(card);
+  if (ui.type === 'fc' && (ui.fcFirst === null || ui.fcFirst === i)) {
+    ui.fcFirst = ui.fcFirst === null ? i : null;
+    renderBoard();
+    renderSlip();
+    return;
+  }
+  const stake = Math.floor(ui.stake);
+  if (!(stake >= 1)) { toast('Enter a stake of at least 1 curd.'); return; }
+  const cost = ui.type === 'ew' ? stake * 2 : stake;
+  if (cost > save.bank) {
+    toast(save.bank < 1 ? "You're out of curds." : `That bet costs ${curds(cost)} and you have ${curds(save.bank)}. Lower the stake.`);
+    return;
+  }
+  if (card.bets.length >= 10) { toast('Ten bets per race is the limit.'); return; }
+  const sel = ui.type === 'fc' ? [ui.fcFirst, i] : [i];
+  const odds = ui.type === 'fc' ? card.fc[sel[0]][sel[1]] : card.win[i];
+  const bet = { id: card.nextId++, type: ui.type, sel, stake, odds, status: 'open', ret: 0 };
+  card.bets.push(bet);
+  save.bank -= cost;
+  ui.fcFirst = null;
+  persist();
+  const what = ui.type === 'fc' ? `${field[sel[0]].short} then ${field[sel[1]].short}` : field[i].name;
+  toast(`Bet placed: ${curds(stake)}${ui.type === 'ew' ? ' each-way' : ''} on ${what} at ${oddsText(odds)}.`);
+  renderAll();
+}
+
+function cancelBet(id) {
+  const card = save.card;
+  if (ui.phase !== 'betting' || card.started) return;
+  const k = card.bets.findIndex((b) => b.id === id);
+  if (k < 0) return;
+  save.bank += costOf(card.bets[k]);
+  card.bets.splice(k, 1);
+  persist();
+  renderAll();
+}
+
+function cashOut(id) {
+  if (!pb || ui.phase !== 'racing') return;
+  const b = save.card.bets.find((x) => x.id === id);
+  if (!b || b.status !== 'open' || !(b.cashNow >= 1)) return;
+  b.status = 'cashed';
+  b.ret = b.cashNow;
+  save.bank += b.ret;
+  save.biggest = Math.max(save.biggest, b.ret - costOf(b));
+  persist();
+  toast(`Cashed out for ${curds(b.ret)} curds.`);
+  renderBank();
+  renderSlip();
+}
+
+function updateCash() {
+  const open = save.card.bets.filter((b) => b.status === 'open');
+  if (!open.length || !pb) return;
+  const ch = chances(pb.frames[pb.i], pb.field, pb.w, CASH_RUNS, Math.random, pb.P);
+  for (const b of open) {
+    b.cashNow = worthNow(b, ch);
+    const btn = document.querySelector(`[data-cash="${b.id}"]`);
+    if (btn) {
+      btn.disabled = !(b.cashNow >= 1);
+      btn.textContent = b.cashNow >= 1 ? `Cash out ${curds(b.cashNow)}` : 'No cash-out';
+    }
+  }
+}
+
+// ---------------------------------------------------------------- the race
+
+function startRace() {
+  const card = save.card;
+  if (!card || ui.phase !== 'betting') return;
+  const field = fieldOf(card);
+  const w = WX[card.wx];
+  const P = field.map((c) => prep(c, w));
+  const rng = mulberry32(card.seed); // the same seed always runs the same race
+  const race = newRace(field);
+  const frames = [cloneRace(race)];
+  const events = [];
+  const log = (i, kind) => events.push({ tick: race.tick + 1, i, kind });
+  let tail = 0;
+  while (tail < 40 && frames.length < 2400) {
+    step(race, P, field, w, rng, log);
+    frames.push(cloneRace(race));
+    if (!running(race)) tail++;
+  }
+  card.started = true;
+  for (const b of card.bets) delete b.cashNow;
+  persist();
+  ui.phase = 'racing';
+  ui.fcFirst = null;
+  lastFrame = null;
+  parts = [];
+  pb = { frames, events, ev: 0, P, field, w, i: 0, acc: 0, last: performance.now(), leader: -1, leaderAt: 0, leaderCalled: true, calledAt: 0, lastKind: {}, halfway: false, home: false, raf: 0 };
+  $('#calls').innerHTML = '';
+  call("They're away! Six cheeses off the ramp.");
+  renderAll();
+  const box = $('#stage').getBoundingClientRect();
+  if (box.top < 0 || box.bottom > window.innerHeight) $('#stage').scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'start' });
+  updateCash();
+  pb.raf = requestAnimationFrame(loop);
+}
+
+function leaderOf(fr) {
+  const home = finishOrder(fr);
+  if (home.length) return home[0];
+  let best = -1;
+  fr.rs.forEach((r, i) => { if (r.st === 0 && (best < 0 || r.x > fr.rs[best].x)) best = i; });
+  return best;
+}
+
+function onFrame() {
+  const fr = pb.frames[pb.i];
+  const f = pb.field;
+  while (pb.ev < pb.events.length && pb.events[pb.ev].tick <= pb.i) {
+    const e = pb.events[pb.ev++];
+    if (MINOR[e.kind] && (fr.t - (pb.lastKind[e.kind] ?? -9) < 3 || fr.t - pb.calledAt < 0.9)) continue;
+    pb.lastKind[e.kind] = fr.t;
+    pb.calledAt = fr.t;
+    call(CALLS[e.kind](f[e.i].name));
+    if (e.kind === 'splat') spawn(fr.rs[e.i], e.i, f[e.i].face, 14, 1.6);
+  }
+  fr.rs.forEach((r, k) => { if (r.bump && r.st === 0) spawn(r, k, null, 4, 1); });
+
+  const lead = leaderOf(fr);
+  if (lead !== pb.leader) { pb.leader = lead; pb.leaderAt = fr.t; pb.leaderCalled = false; }
+  if (!pb.leaderCalled && lead >= 0 && fr.finished === 0 && fr.t - pb.leaderAt > 0.5 && fr.t - pb.calledAt > 1.6) {
+    call(fr.t < 2.5 ? `${f[lead].name} shows first.` : `${f[lead].name} takes the lead.`);
+    pb.leaderCalled = true;
+    pb.calledAt = fr.t;
+  }
+  if (!pb.halfway && fr.rs.some((r) => r.x >= TRACK / 2)) {
+    pb.halfway = true;
+    const order = fr.rs.map((r, i) => i).filter((i) => fr.rs[i].st !== 2).sort((a, b) => fr.rs[b].x - fr.rs[a].x);
+    if (order.length > 1) {
+      call(`Halfway down, and it's ${f[order[0]].short} from ${f[order[1]].short}.`);
+      pb.calledAt = fr.t;
+    }
+  }
+  if (!pb.home && fr.finished > 0) {
+    pb.home = true;
+    call(`${f[finishOrder(fr)[0]].name} hits the bottom first!`);
+    pb.calledAt = fr.t;
+  }
+  if (pb.i % 6 === 0) renderOrder(fr);
+  if (pb.i % 12 === 0) updateCash();
+}
+
+function loop(now) {
+  if (!pb) return;
+  const dt = Math.min(0.1, (now - pb.last) / 1000);
+  pb.last = now;
+  pb.acc += dt;
+  while (pb.acc >= DT && pb.i < pb.frames.length - 1) {
+    pb.acc -= DT;
+    pb.i++;
+    onFrame();
+  }
+  stepParts(dt);
+  draw(pb.frames[pb.i]);
+  if (pb.i >= pb.frames.length - 1) { finishRace(); return; }
+  pb.raf = requestAnimationFrame(loop);
+}
+
+function resultCall(order, fr, field) {
+  if (!order.length) return 'Nobody reaches the bottom. Every bet loses, and the bookie is delighted.';
+  if (order.length === 1) return `${field[order[0]].name} wins. The only cheese to make it down.`;
+  const gap = fr.rs[order[1]].fin - fr.rs[order[0]].fin;
+  const by = gap < 0.03 ? 'a crumb, on the photo' : gap < 0.1 ? 'a rind' : gap < 0.3 ? 'half a wheel' : gap < 0.7 ? 'a wheel' : gap < 1.5 ? 'several wheels' : 'a distance';
+  return `${field[order[0]].name} wins by ${by} from ${field[order[1]].name}.`;
+}
+
+function finishRace() {
+  cancelAnimationFrame(pb.raf);
+  const last = pb.frames[pb.frames.length - 1];
+  const card = save.card;
+  const field = pb.field;
+  const order = finishOrder(last);
+  let returned = 0;
+  for (const b of card.bets) {
+    delete b.cashNow;
+    if (b.status !== 'cashed') {
+      b.ret = settle(b, order);
+      b.status = b.ret > 0 ? 'won' : 'lost';
+      save.bank += b.ret;
+      if (b.ret > 0) save.biggest = Math.max(save.biggest, b.ret - costOf(b));
+    }
+    returned += b.ret;
+  }
+  addForm(field, last, order);
+  save.races++;
+  save.best = Math.max(save.best, save.bank);
+  ui.result = { order, why: last.rs.map((r) => r.why), returned };
+  ui.resultCard = card;
+  save.card = null;
+  persist();
+  ui.phase = 'result';
+  pb = null;
+  parts = [];
+  lastFrame = last;
+  call(resultCall(order, last, field));
+  draw(last);
+  renderAll();
+}
+
+function nextRace() {
+  const go = $('#go');
+  go.disabled = true;
+  go.textContent = 'Pricing up the next race…';
+  setTimeout(() => {
+    newCard();
+    ui.phase = 'betting';
+    ui.result = null;
+    ui.resultCard = null;
+    ui.fcFirst = null;
+    lastFrame = null;
+    $('#calls').innerHTML = '';
+    call(intro(save.card));
+    buildBg();
+    draw(currentFrame());
+    renderAll();
+    go.disabled = false;
+  }, 40);
+}
+
+// ---------------------------------------------------------------- rendering: the hill
+
+const cv = $('#hill');
+const ctx = cv.getContext('2d');
+let geo = null;
+let bg = null;
+
+const sizeOf = (kg) => 0.62 + 0.3 * Math.log10(kg * 4 + 1);
+
+function layoutCanvas() {
+  const w = Math.max(260, $('#stage').clientWidth);
+  const h = Math.round(clamp(w * 0.46, 230, 420));
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  cv.width = Math.round(w * dpr);
+  cv.height = Math.round(h * dpr);
+  cv.style.height = `${h}px`;
+  geo = { w, h, dpr, xs: w * 0.1, ys: h * 0.29, xe: w * 0.84, ye: h * 0.73, lane: clamp(h * 0.035, 7, 14), r: clamp(h * 0.034, 6.5, 15) };
+  buildBg();
+  draw(currentFrame());
+}
+
+// A point on the course: x in yards down the hill, lane offset across it (negative is the far side).
+function pt(x, lane) {
+  const s = x / TRACK;
+  const p = heightAt(x) / H_TOTAL;
+  return [geo.xs + (geo.xe - geo.xs) * s - lane * geo.lane * 1.1, geo.ys + (geo.ye - geo.ys) * p + lane * geo.lane];
+}
+
+function angleAt(x) {
+  const a = pt(x - 1, 0);
+  const b = pt(x + 1, 0);
+  return Math.atan2(b[1] - a[1], b[0] - a[0]);
+}
+
+function poly(g, pts) {
+  g.beginPath();
+  pts.forEach(([x, y], j) => (j ? g.lineTo(x, y) : g.moveTo(x, y)));
+  g.closePath();
+}
+
+function buildBg() {
+  const card = curCard();
+  const w = WX[card.wx];
+  bg = document.createElement('canvas');
+  bg.width = cv.width;
+  bg.height = cv.height;
+  const g = bg.getContext('2d');
+  g.setTransform(geo.dpr, 0, 0, geo.dpr, 0, 0);
+  const W = geo.w;
+  const H = geo.h;
+  const L = geo.lane;
+  const rnd = mulberry32(card.no * 7919 + 11);
+
+  let gr = g.createLinearGradient(0, 0, 0, H * 0.75);
+  gr.addColorStop(0, w.sky[0]);
+  gr.addColorStop(1, w.sky[1]);
+  g.fillStyle = gr;
+  g.fillRect(0, 0, W, H);
+  if (w.id === 'sun') {
+    const sx = W * 0.9;
+    const sy = H * 0.15;
+    const sg = g.createRadialGradient(sx, sy, 0, sx, sy, H * 0.25);
+    sg.addColorStop(0, 'rgba(255,250,222,1)');
+    sg.addColorStop(0.22, 'rgba(255,242,196,0.95)');
+    sg.addColorStop(1, 'rgba(255,242,196,0)');
+    g.fillStyle = sg;
+    g.fillRect(0, 0, W, H);
+  }
+  const clouds = w.id === 'sun' ? 2 : w.id === 'drizzle' ? 7 : 4;
+  for (let c = 0; c < clouds; c++) {
+    const cx = W * (0.3 + rnd() * 0.7);
+    const cy = H * (0.05 + rnd() * 0.2);
+    const s = H * (0.035 + rnd() * 0.03);
+    g.fillStyle = w.id === 'drizzle' ? 'rgba(118,128,134,0.6)' : 'rgba(255,255,255,0.8)';
+    for (let k = 0; k < 5; k++) {
+      g.beginPath();
+      g.ellipse(cx + (k - 2) * s * 0.9, cy + Math.abs(k - 2) * s * 0.18, s * (1.25 - Math.abs(k - 2) * 0.2), s * (0.8 - Math.abs(k - 2) * 0.12), 0, 0, TAU);
+      g.fill();
+    }
+  }
+  // The valley beyond the bottom of the hill.
+  [[H * 0.5, 0.05, 3.1, 0.7, w.far], [H * 0.6, 0.04, 5.3, 2.1, w.mid]].forEach(([base, amp, f1, ph, col]) => {
+    g.beginPath();
+    g.moveTo(0, H);
+    for (let x = 0; x <= W; x += 6) g.lineTo(x, base + Math.sin((x / W) * f1 + ph) * H * amp + Math.sin((x / W) * 13 + ph) * H * 0.012);
+    g.lineTo(W, H);
+    g.closePath();
+    g.fillStyle = col;
+    g.fill();
+  });
+
+  const back = [];
+  const front = [];
+  for (let x = -80; x <= TRACK * 1.3; x += 2) { back.push(pt(x, -3.4)); front.push(pt(x, 3.4)); }
+
+  // The hill itself, then the mown course, then the bank facing us.
+  poly(g, [[-10, back[0][1]], ...back, [W + 10, back[back.length - 1][1]], [W + 10, H + 10], [-10, H + 10]]);
+  gr = g.createLinearGradient(0, H * 0.1, 0, H);
+  gr.addColorStop(0, '#6fae52');
+  gr.addColorStop(1, '#447f37');
+  g.fillStyle = gr;
+  g.fill();
+
+  for (let x = -6; x < TRACK * 1.14; x += 8) {
+    poly(g, [pt(x, -3.4), pt(x + 8.4, -3.4), pt(x + 8.4, 3.4), pt(x, 3.4)]);
+    g.fillStyle = Math.round((x + 6) / 8) % 2 ? '#86bf62' : '#7bb658';
+    g.fill();
+  }
+
+  poly(g, [[-10, front[0][1]], ...front, [W + 10, front[front.length - 1][1]], [W + 10, H + 10], [-10, H + 10]]);
+  gr = g.createLinearGradient(0, H * 0.3, 0, H);
+  gr.addColorStop(0, '#558f40');
+  gr.addColorStop(1, '#30652a');
+  g.fillStyle = gr;
+  g.fill();
+
+  // Rope and stakes along both sides.
+  g.lineCap = 'round';
+  [-3.5, 3.5].forEach((ln) => {
+    g.strokeStyle = 'rgba(250,248,238,0.8)';
+    g.lineWidth = 1.2;
+    g.beginPath();
+    for (let x = -4; x <= TRACK * 1.1; x += 2) { const [px, py] = pt(x, ln); g[x === -4 ? 'moveTo' : 'lineTo'](px, py - L * 0.7); }
+    g.stroke();
+    g.strokeStyle = '#7a5a36';
+    g.lineWidth = 1.6;
+    for (let x = 0; x <= TRACK * 1.1; x += 12) {
+      const [px, py] = pt(x, ln);
+      g.beginPath(); g.moveTo(px, py); g.lineTo(px, py - L * 0.85); g.stroke();
+    }
+  });
+
+  // Spectators: a far crowd above the course and a nearer one below it.
+  const COATS = ['#2e4a7a', '#a33b2f', '#e0b43a', '#3d6e4f', '#f0ede4', '#5a3d6b', '#c86b2a', '#2b2b2b', '#4f8fb0'];
+  const SKIN = ['#f1c9a5', '#d9a47b', '#a86e4a', '#7a4b2e', '#f5d7bd'];
+  const person = (x, ln, size) => {
+    const [px, py] = pt(x, ln);
+    g.fillStyle = COATS[Math.floor(rnd() * COATS.length)];
+    g.beginPath();
+    g.roundRect(px - size * 0.27, py - size, size * 0.54, size * 0.78, size * 0.2);
+    g.fill();
+    if (rnd() < 0.3) { // arms up, cheering
+      g.strokeStyle = g.fillStyle;
+      g.lineWidth = Math.max(1.2, size * 0.12);
+      g.beginPath(); g.moveTo(px - size * 0.2, py - size * 0.85); g.lineTo(px - size * 0.42, py - size * 1.3); g.stroke();
+      g.beginPath(); g.moveTo(px + size * 0.2, py - size * 0.85); g.lineTo(px + size * 0.42, py - size * 1.3); g.stroke();
+    }
+    g.fillStyle = SKIN[Math.floor(rnd() * SKIN.length)];
+    g.beginPath(); g.arc(px, py - size * 1.12, size * 0.2, 0, TAU); g.fill();
+  };
+  const far = [];
+  for (let x = -50; x < TRACK * 1.25; x += 2.4 + rnd() * 2.4) far.push([x, -3.95 - rnd() * 1.1]);
+  far.sort((a, b) => a[1] - b[1]).forEach(([x, ln]) => person(x, ln, L * 1.45));
+
+  // Distance boards, the start flag, the finish line and the hay bales at the bottom.
+  g.font = `600 ${clamp(L * 0.95, 9, 12)}px Bitter, Georgia, serif`;
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  [50, 100, 150].forEach((d) => {
+    const [px, py] = pt(d, 3.55);
+    const label = `${d} yd`;
+    const tw = g.measureText(label).width + 8;
+    g.fillStyle = '#f7f4ea';
+    g.fillRect(px - tw / 2, py - L * 0.2, tw, L * 1.25);
+    g.fillStyle = '#26302b';
+    g.fillText(label, px, py + L * 0.42);
+  });
+  {
+    const [px, py] = pt(-2, -3.7);
+    g.strokeStyle = '#5b4226'; g.lineWidth = 2;
+    g.beginPath(); g.moveTo(px, py); g.lineTo(px, py - L * 3); g.stroke();
+    g.fillStyle = '#c8282d';
+    g.beginPath(); g.moveTo(px, py - L * 3); g.lineTo(px + L * 1.6, py - L * 2.55); g.lineTo(px, py - L * 2.1); g.closePath(); g.fill();
+  }
+  const sq = Math.max(3, L * 0.42);
+  for (let j = 0; j <= 16; j++) {
+    const ln = -3.4 + (6.8 * j) / 16;
+    const [px, py] = pt(TRACK, ln);
+    for (let c = 0; c < 2; c++) {
+      g.fillStyle = (j + c) % 2 ? '#1b1b1b' : '#fafafa';
+      g.fillRect(px - sq + c * sq, py - sq / 2, sq, sq);
+    }
+  }
+  {
+    const [px, py] = pt(TRACK, -3.7);
+    g.strokeStyle = '#3a3a3a'; g.lineWidth = 2;
+    g.beginPath(); g.moveTo(px, py); g.lineTo(px, py - L * 3.2); g.stroke();
+    for (let r = 0; r < 3; r++) for (let c = 0; c < 4; c++) {
+      g.fillStyle = (r + c) % 2 ? '#1b1b1b' : '#fafafa';
+      g.fillRect(px + c * L * 0.4, py - L * 3.2 + r * L * 0.4, L * 0.4, L * 0.4);
+    }
+  }
+  for (let ln = -3; ln <= 3.01; ln += 1.5) {
+    const [px, py] = pt(TRACK * 1.135, ln);
+    g.fillStyle = '#d8b45c';
+    g.strokeStyle = '#a68437';
+    g.lineWidth = 1;
+    g.beginPath(); g.roundRect(px - L * 0.9, py - L * 1.15, L * 1.8, L * 1.15, 3); g.fill(); g.stroke();
+    g.beginPath(); g.moveTo(px - L * 0.6, py - L * 0.6); g.lineTo(px + L * 0.6, py - L * 0.6); g.stroke();
+  }
+
+  const nearCrowd = [];
+  for (let x = -40; x < TRACK * 1.2; x += 4 + rnd() * 4) nearCrowd.push([x, 5.4 + rnd() * 0.9]);
+  nearCrowd.sort((a, b) => a[1] - b[1]).forEach(([x, ln]) => person(x, ln, L * 2));
+}
+
+function drawCheese(x, y, rad, ang, c) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(ang);
+  ctx.fillStyle = c.rim;
+  ctx.beginPath(); ctx.arc(0, 0, rad, 0, TAU); ctx.fill();
+  ctx.fillStyle = c.face;
+  ctx.beginPath(); ctx.arc(0, 0, rad * 0.8, 0, TAU); ctx.fill();
+  ctx.fillStyle = c.mark || c.rim;
+  if (c.holes) {
+    [[0.34, 0.18, 0.17], [-0.3, 0.34, 0.12], [-0.12, -0.4, 0.14], [0.36, -0.32, 0.09], [-0.42, -0.06, 0.08]].forEach(([hx, hy, hr]) => {
+      ctx.beginPath(); ctx.arc(hx * rad, hy * rad, hr * rad, 0, TAU); ctx.fill();
+    });
+  } else {
+    ctx.beginPath(); ctx.arc(rad * 0.42, 0, rad * 0.15, 0, TAU); ctx.fill();
+    ctx.fillRect(-rad * 0.55, -rad * 0.05, rad * 0.75, rad * 0.1);
+  }
+  if (c.dots) {
+    for (let k = 0; k < 14; k++) {
+      ctx.beginPath(); ctx.arc(Math.cos((k / 14) * TAU) * rad * 0.9, Math.sin((k / 14) * TAU) * rad * 0.9, Math.max(0.6, rad * 0.04), 0, TAU); ctx.fill();
+    }
+  }
+  ctx.restore();
+  ctx.fillStyle = 'rgba(255,255,255,0.22)';
+  ctx.beginPath(); ctx.arc(x - rad * 0.3, y - rad * 0.35, rad * 0.3, 0, TAU); ctx.fill();
+  ctx.strokeStyle = 'rgba(40,28,10,0.5)';
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.arc(x, y, rad, 0, TAU); ctx.stroke();
+}
+
+function drawSplat(x, y, rad, c, ang) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(ang);
+  ctx.fillStyle = c.face;
+  ctx.strokeStyle = c.rim;
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.ellipse(0, -rad * 0.14, rad * 1.4, rad * 0.32, 0, 0, TAU); ctx.fill(); ctx.stroke();
+  [[-1.7, -0.3, 0.2], [1.8, -0.4, 0.16], [-0.9, -0.75, 0.13], [1.1, -0.85, 0.12], [2.3, -0.1, 0.1]].forEach(([ox, oy, r]) => {
+    ctx.beginPath(); ctx.arc(ox * rad, oy * rad, r * rad, 0, TAU); ctx.fill();
+  });
+  ctx.restore();
+}
+
+function drawDog(x, ang, lane, t, size) {
+  const [gx, gy] = pt(x, lane);
+  const k = size;
+  const bob = Math.sin(t * 28) * k * 0.08;
+  const sw = Math.sin(t * 28) * k * 0.35;
+  ctx.save();
+  ctx.translate(gx, gy);
+  ctx.rotate(ang);
+  ctx.strokeStyle = '#1e1e1e';
+  ctx.lineWidth = Math.max(1.2, k * 0.14);
+  ctx.lineCap = 'round';
+  [-0.45, 0.4].forEach((lx) => {
+    ctx.beginPath(); ctx.moveTo(lx * k, -k * 0.55 + bob); ctx.lineTo(lx * k + sw, 0); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(lx * k + k * 0.1, -k * 0.55 + bob); ctx.lineTo(lx * k + k * 0.1 - sw, 0); ctx.stroke();
+  });
+  ctx.beginPath();
+  ctx.moveTo(-k * 0.7, -k * 0.85 + bob);
+  ctx.quadraticCurveTo(-k * 1.0, -k * 1.25, -k * 1.15, -k * 1.0 + Math.sin(t * 20) * k * 0.12);
+  ctx.stroke();
+  ctx.fillStyle = '#1e1e1e';
+  ctx.beginPath(); ctx.ellipse(0, -k * 0.75 + bob, k * 0.75, k * 0.32, 0, 0, TAU); ctx.fill();
+  ctx.beginPath(); ctx.arc(k * 0.85, -k * 1.05 + bob, k * 0.27, 0, TAU); ctx.fill();
+  ctx.fillStyle = '#f2efe6';
+  ctx.beginPath(); ctx.ellipse(k * 0.5, -k * 0.68 + bob, k * 0.22, k * 0.2, 0, 0, TAU); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(k * 1.08, -k * 0.98 + bob, k * 0.14, k * 0.09, 0, 0, TAU); ctx.fill();
+  ctx.restore();
+}
+
+function drawBadge(x, y, k, mine) {
+  const br = clamp(geo.r * 0.62, 6, 9);
+  const [bgc, fg] = SADDLE[k];
+  ctx.beginPath(); ctx.arc(x, y, br, 0, TAU);
+  ctx.fillStyle = bgc; ctx.fill();
+  ctx.lineWidth = mine ? 2.5 : 1;
+  ctx.strokeStyle = mine ? '#f4b942' : 'rgba(0,0,0,0.55)';
+  ctx.stroke();
+  ctx.fillStyle = fg;
+  ctx.font = `700 ${Math.round(br * 1.3)}px Bitter, Georgia, serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(String(k + 1), x, y + 0.5);
+}
+
+function spawn(r, k, color, n, power) {
+  if (reduced) return;
+  const [gx, gy] = pt(r.x, k - 2.5 + (r.lat || 0));
+  const TURF = ['#5d8f3e', '#7a5a36', '#9cc46e'];
+  for (let j = 0; j < n; j++) {
+    parts.push({
+      x: gx, y: gy - 2,
+      vx: color ? (Math.random() - 0.5) * 160 * power : -20 - Math.random() * 50,
+      vy: -30 - Math.random() * 70 * power,
+      life: 0.45 + Math.random() * 0.35,
+      col: color || TURF[j % 3],
+      s: 1.5 + Math.random() * 2,
+    });
+  }
+}
+
+function stepParts(dt) {
+  for (const p of parts) { p.vy += 320 * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.life -= dt; }
+  parts = parts.filter((p) => p.life > 0);
+}
+
+function draw(fr) {
+  if (!geo || !bg) return;
+  const card = curCard();
+  const field = fieldOf(card);
+  const backed = new Set(card.bets.flatMap((b) => b.sel));
+  const w = WX[card.wx];
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.drawImage(bg, 0, 0);
+  ctx.setTransform(geo.dpr, 0, 0, geo.dpr, 0, 0);
+  const t = fr.t;
+  const pxPerYd = (geo.xe - geo.xs) / TRACK;
+  const badges = [];
+
+  fr.rs.forEach((r, k) => {
+    const c = field[k];
+    const lane = k - 2.5 + (r.lat || 0);
+    if (r.st === 2 && r.why === 'C' && r.lat > 4.6) return;
+    const [gx, gy] = pt(r.x, lane);
+    const rad = geo.r * sizeOf(c.kg) * (0.9 + k * 0.035);
+    const ang = angleAt(r.x);
+    if (r.st === 2 && r.why === 'S') {
+      drawSplat(gx, gy, rad, c, ang);
+      badges.push([gx, gy - rad * 0.9 - 6, k]);
+      return;
+    }
+    ctx.globalAlpha = r.why === 'C' ? clamp(1 - (r.lat - 2.4) / 2.2, 0, 1) : 1;
+    const lift = r.y * pxPerYd * 6;
+    const sink = r.stun > 0 ? rad * 0.6 : 0;
+    ctx.fillStyle = 'rgba(25,45,15,0.3)';
+    ctx.beginPath(); ctx.ellipse(gx, gy, rad * Math.max(0.45, 0.95 - lift / 50), rad * 0.24, ang, 0, TAU); ctx.fill();
+    if (r.stun > 0) {
+      ctx.fillStyle = '#3b2a18';
+      ctx.beginPath(); ctx.ellipse(gx, gy, rad * 0.9, rad * 0.28, ang, 0, TAU); ctx.fill();
+    }
+    if (r.chase > 0 && r.st === 0) drawDog(r.x - 5, angleAt(r.x - 5), lane, t, Math.max(6, rad * 0.9));
+    const cy = gy - rad - lift + sink;
+    drawCheese(gx, cy, rad, r.ang, c);
+    badges.push([gx, cy - rad - clamp(geo.r * 0.62, 6, 9) - 2, k, ctx.globalAlpha]);
+    ctx.globalAlpha = 1;
+  });
+  badges.forEach(([x, y, k, a = 1]) => { ctx.globalAlpha = a; drawBadge(x, y, k, backed.has(k)); });
+  ctx.globalAlpha = 1;
+
+  for (const p of parts) {
+    ctx.globalAlpha = Math.min(1, p.life * 2.5);
+    ctx.fillStyle = p.col;
+    ctx.fillRect(p.x, p.y, p.s, p.s);
+  }
+  ctx.globalAlpha = 1;
+
+  if (w.id === 'drizzle') {
+    ctx.strokeStyle = 'rgba(225,235,240,0.35)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let j = 0; j < 70; j++) {
+      const rx = ((j * 97.3 + t * 60) % (geo.w + 40)) - 20;
+      const ry = ((j * 53.7 + t * 420) % (geo.h + 20)) - 10;
+      ctx.moveTo(rx, ry); ctx.lineTo(rx - 3, ry + 9);
+    }
+    ctx.stroke();
+  }
+
+  const fs = clamp(geo.h * 0.055, 12, 17);
+  ctx.font = `700 ${fs}px Bitter, Georgia, serif`;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  const label = `${Math.floor(t / 60)}:${(t % 60).toFixed(1).padStart(4, '0')}`;
+  const tw = ctx.measureText('0:00.0').width;
+  ctx.fillStyle = 'rgba(20,32,25,0.75)';
+  ctx.beginPath(); ctx.roundRect(10, 10, tw + 18, fs + 12, 6); ctx.fill();
+  ctx.fillStyle = '#edebe0';
+  ctx.fillText(label, 19, 10 + (fs + 12) / 2 + 1);
+}
+
+// ---------------------------------------------------------------- wiring
+
+function makeGrain() {
+  try {
+    const c = document.createElement('canvas');
+    c.width = c.height = 160;
+    const g = c.getContext('2d');
+    const img = g.createImageData(160, 160);
+    for (let i = 0; i < img.data.length; i += 4) {
+      const v = Math.random();
+      if (v > 0.86) {
+        img.data[i] = img.data[i + 1] = img.data[i + 2] = 255;
+        img.data[i + 3] = Math.floor((v - 0.86) * 190);
+      }
+    }
+    g.putImageData(img, 0, 0);
+    document.documentElement.style.setProperty('--grain', `url(${c.toDataURL()})`);
+  } catch (e) { /* plain board */ }
+}
+
+function wire() {
+  $('#runners').addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-i]');
+    if (btn) back(Number(btn.dataset.i));
+  });
+  $('#bets').addEventListener('click', (e) => {
+    const c = e.target.closest('[data-cancel]');
+    if (c) cancelBet(Number(c.dataset.cancel));
+    const k = e.target.closest('[data-cash]');
+    if (k) cashOut(Number(k.dataset.cash));
+  });
+  document.querySelectorAll('input[name="btype"]').forEach((r) => r.addEventListener('change', () => {
+    ui.type = r.value;
+    ui.fcFirst = null;
+    renderBoard();
+    renderSlip();
+  }));
+  $('#stake').addEventListener('input', (e) => { ui.stake = Math.max(0, Math.floor(Number(e.target.value) || 0)); });
+  $('#chips').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-stake]');
+    if (!b) return;
+    const v = b.dataset.stake;
+    ui.stake = v === 'all' ? Math.floor(ui.type === 'ew' ? save.bank / 2 : save.bank) : Number(v);
+    $('#stake').value = ui.stake;
+  });
+  $('#go').addEventListener('click', () => {
+    if (ui.phase === 'betting') startRace();
+    else if (ui.phase === 'result') nextRace();
+  });
+  $('#skip').addEventListener('click', () => { if (pb) finishRace(); });
+  $('#bail').addEventListener('click', () => {
+    save.bank += 50;
+    save.bailouts++;
+    persist();
+    toast('The Dairy Board lends you 50 curds.');
+    renderAll();
+  });
+  let armed = 0;
+  $('#reset').addEventListener('click', (e) => {
+    const btn = e.currentTarget;
+    if (ui.phase === 'racing') { toast('Wait for the race to finish first.'); return; }
+    if (!armed) {
+      btn.textContent = 'Tap again to wipe your bankroll';
+      armed = setTimeout(() => { armed = 0; btn.textContent = 'Start over'; }, 3500);
+      return;
+    }
+    clearTimeout(armed);
+    armed = 0;
+    btn.textContent = 'Start over';
+    save = fresh();
+    seedForm();
+    newCard();
+    ui.phase = 'betting';
+    ui.result = null;
+    ui.resultCard = null;
+    ui.fcFirst = null;
+    lastFrame = null;
+    shownBank = null;
+    $('#calls').innerHTML = '';
+    call('Fresh start: 100 curds in your pocket.');
+    buildBg();
+    draw(currentFrame());
+    renderAll();
+  });
+  let pending = 0;
+  new ResizeObserver(() => {
+    cancelAnimationFrame(pending);
+    pending = requestAnimationFrame(() => {
+      if (geo && $('#stage').clientWidth !== geo.w) layoutCanvas();
+    });
+  }).observe($('#stage'));
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { if (geo) { buildBg(); draw(currentFrame()); } });
+}
+
+function boot(data) {
+  save = (data && data.save && typeof data.save.bank === 'number' ? { ...fresh(), ...data.save } : null) || load();
+  if (!save) { save = fresh(); seedForm(); }
+  if (!save.card) newCard();
+  makeGrain();
+  wire();
+  call(save.card.started ? 'Welcome back. Your bets are on, and the cheeses are waiting at the top.' : intro(save.card));
+  layoutCanvas();
+  renderAll();
+}
+
+const hot = window.claude && window.claude.hot;
+if (hot && typeof hot.snapshot === 'function') {
+  try { hot.snapshot(() => ({ save })); } catch (e) { /* not available */ }
+}
+if (hot && typeof hot.ready === 'function') hot.ready(boot);
+else boot((hot && hot.data) || {});
+})();
+</script>
+</body>
+</html>
